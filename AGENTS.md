@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues and specs are tracked in GitHub Issues for `Raphael87-FR/tilevio`. See `docs/agents/issue-tracker.md`.
+Issues and specs are tracked in GitHub Issues for `Raphael87-FR/tilevio-launcher`. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

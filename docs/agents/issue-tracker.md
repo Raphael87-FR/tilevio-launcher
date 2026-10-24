@@ -1,7 +1,7 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues in `Raphael87-FR/tilevio`.
-Repository remote: `git@github.com:Raphael87-FR/tilevio.git`.
+Issues and specs for this repo live as GitHub issues in `Raphael87-FR/tilevio-launcher`.
+Repository remote: `git@github.com:Raphael87-FR/tilevio-launcher.git`.
 Use the `gh` CLI for all operations.
 
 ## Conventions
@@ -15,7 +15,7 @@ Use the `gh` CLI for all operations.
 - **Close**: `gh issue close <number> --comment "..."`.
 
 Infer the repo from `git remote -v`; `gh` does this automatically when run inside a clone.
-Until the local Git remote is configured, use `gh --repo Raphael87-FR/tilevio`.
+Until the local Git remote is configured, use `gh --repo Raphael87-FR/tilevio-launcher`.
 
 ## Pull requests as a triage surface
 
