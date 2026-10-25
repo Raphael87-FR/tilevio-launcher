@@ -14,4 +14,5 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 
 ### Commit messages
 
+Use Conventional Commits prefixes such as `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, and `test:`.
 In commit messages, place `closed` immediately after `implement`.
