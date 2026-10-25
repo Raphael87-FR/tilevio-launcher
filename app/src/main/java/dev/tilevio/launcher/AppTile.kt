@@ -31,6 +31,7 @@ fun AppTile(
     focusRequester: FocusRequester,
     onFocused: () -> Unit,
     onOpen: () -> Unit,
+    upFocusRequester: FocusRequester? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
@@ -55,7 +56,10 @@ fun AppTile(
                 val isActivationKey = event.key == Key.DirectionCenter ||
                     event.key == Key.Enter ||
                     event.key == Key.NumPadEnter
-                if (event.type == KeyEventType.KeyUp && isActivationKey) {
+                if (event.type == KeyEventType.KeyUp && event.key == Key.DirectionUp && upFocusRequester != null) {
+                    upFocusRequester.requestFocus()
+                    true
+                } else if (event.type == KeyEventType.KeyUp && isActivationKey) {
                     onOpen()
                     true
                 } else {

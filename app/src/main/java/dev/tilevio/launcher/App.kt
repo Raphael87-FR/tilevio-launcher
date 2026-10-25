@@ -49,4 +49,6 @@ fun interface AppLauncher {
 data class LauncherDependencies(
     val catalog: AppCatalog,
     val appLauncher: AppLauncher,
+    val homeRole: HomeRoleAdapter,
+    val homeRolePromptStore: HomeRolePromptStore,
 )
