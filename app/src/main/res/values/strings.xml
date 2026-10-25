@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tilevio</string>
+    <string name="empty_catalog">No apps available to open. Install an app and return to Tilevio.</string>
+    <string name="launch_failure">Couldn\'t open %1$s. The app list was refreshed.</string>
+</resources>
