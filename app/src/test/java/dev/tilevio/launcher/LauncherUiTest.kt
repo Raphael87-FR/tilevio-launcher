@@ -10,6 +10,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -43,6 +44,61 @@ class LauncherUiTest {
     fun setUp() {
         testApplication = ApplicationProvider.getApplicationContext()
         testApplication.reset()
+    }
+
+    @Test
+    fun launcherUsesDarkWallpaperByDefault() {
+        launchLauncher()
+
+        assertEquals(0xFF171717.toInt(), wallpaperPixel())
+    }
+
+    @Test
+    fun settingsOffersFixedDarkNeutralWallpaperPalette() {
+        launchLauncher()
+        openSettings()
+
+        composeRule.onNodeWithText("Wallpaper").assertIsDisplayed()
+        composeRule.onNodeWithText("Charcoal").assertIsDisplayed()
+        composeRule.onNodeWithText("Graphite").assertIsDisplayed()
+        composeRule.onNodeWithText("Slate").assertIsDisplayed()
+        composeRule.onNodeWithText("Warm Gray").assertIsDisplayed()
+        composeRule.onNodeWithText("Custom color").assertDoesNotExist()
+    }
+
+    @Test
+    fun selectingWallpaperAppliesImmediatelyWithoutSave() {
+        launchLauncher()
+        openSettings()
+
+        composeRule.onNodeWithText("Slate").requestFocus()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+
+        composeRule.onNodeWithText("Slate").assertIsSelected()
+        assertEquals(0xFF263238.toInt(), wallpaperPixel())
+        composeRule.onNodeWithText("Save").assertDoesNotExist()
+        composeRule.runOnUiThread {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.waitForIdle()
+        assertEquals(0xFF263238.toInt(), wallpaperPixel())
+    }
+
+    @Test
+    fun selectedWallpaperSurvivesActivityRecreation() {
+        launchLauncher()
+        openSettings()
+        composeRule.onNodeWithText("Warm Gray").requestFocus()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        composeRule.runOnUiThread {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.waitForIdle()
+
+        composeRule.activity.recreate()
+        composeRule.waitForIdle()
+
+        assertEquals(0xFF2D2A26.toInt(), wallpaperPixel())
     }
 
     @Test
@@ -360,6 +416,13 @@ class LauncherUiTest {
     private fun activateDefaultHome() {
         composeRule.onNodeWithText("Set Tilevio as default home").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+    }
+
+    private fun wallpaperPixel(): Int = composeRule.runOnUiThread {
+        val view = composeRule.activity.window.decorView
+        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        view.draw(android.graphics.Canvas(bitmap))
+        bitmap.getPixel(0, 0)
     }
 
     private fun visibleAppNames(): List<String> = composeRule

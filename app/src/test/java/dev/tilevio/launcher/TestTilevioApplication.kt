@@ -8,6 +8,9 @@ class TestTilevioApplication : TilevioApplication() {
     val appLauncher = FakeAppLauncher()
     val homeRole = FakeHomeRoleAdapter()
     val homeRolePromptStore = FakeHomeRolePromptStore()
+    val wallpaperStore = object : WallpaperStore {
+        override var wallpaper = Wallpaper.Charcoal
+    }
     var useAndroidAppLauncher = false
 
     override val launcherDependencies: LauncherDependencies by lazy {
@@ -22,6 +25,7 @@ class TestTilevioApplication : TilevioApplication() {
             },
             homeRole = homeRole,
             homeRolePromptStore = homeRolePromptStore,
+            wallpaperStore = wallpaperStore,
         )
     }
 
@@ -34,6 +38,7 @@ class TestTilevioApplication : TilevioApplication() {
         homeRole.requestIntents.clear()
         homeRole.homeSettingsIntents.clear()
         homeRolePromptStore.hasHandledInitialRequest = false
+        wallpaperStore.wallpaper = Wallpaper.Charcoal
         useAndroidAppLauncher = false
     }
 }
