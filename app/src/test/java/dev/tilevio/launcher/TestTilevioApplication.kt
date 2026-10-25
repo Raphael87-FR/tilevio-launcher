@@ -1,6 +1,8 @@
 package dev.tilevio.launcher
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
 import android.provider.Settings
 
 class TestTilevioApplication : TilevioApplication() {
@@ -8,9 +10,7 @@ class TestTilevioApplication : TilevioApplication() {
     val appLauncher = FakeAppLauncher()
     val homeRole = FakeHomeRoleAdapter()
     val homeRolePromptStore = FakeHomeRolePromptStore()
-    val wallpaperStore = object : WallpaperStore {
-        override var wallpaper = Wallpaper.Charcoal
-    }
+    val wallpaperStore = FakeWallpaperStore()
     var useAndroidAppLauncher = false
 
     override val launcherDependencies: LauncherDependencies by lazy {
@@ -38,8 +38,48 @@ class TestTilevioApplication : TilevioApplication() {
         homeRole.requestIntents.clear()
         homeRole.homeSettingsIntents.clear()
         homeRolePromptStore.hasHandledInitialRequest = false
-        wallpaperStore.wallpaper = Wallpaper.Charcoal
+        wallpaperStore.reset()
         useAndroidAppLauncher = false
+    }
+}
+
+class FakeWallpaperStore : WallpaperStore {
+    override var wallpaper = Wallpaper.Charcoal
+    var imageToImport: Bitmap? = null
+    var importedUri: Uri? = null
+    var importWidth = 0
+    var importHeight = 0
+    var importCount = 0
+    var sourceAvailable = true
+    var importFailure: Exception? = null
+    private var importedImage: Bitmap? = null
+
+    override val selection: WallpaperSelection
+        get() = importedImage?.let(WallpaperSelection::Image)
+            ?: WallpaperSelection.Solid(wallpaper)
+
+    override fun importImage(uri: Uri, width: Int, height: Int): WallpaperSelection.Image {
+        importCount++
+        check(sourceAvailable)
+        importFailure?.let { throw it }
+        importedUri = uri
+        importWidth = width
+        importHeight = height
+        val image = checkNotNull(imageToImport)
+        importedImage = image
+        return WallpaperSelection.Image(image)
+    }
+
+    fun reset() {
+        wallpaper = Wallpaper.Charcoal
+        imageToImport = null
+        importedUri = null
+        importWidth = 0
+        importHeight = 0
+        importCount = 0
+        sourceAvailable = true
+        importFailure = null
+        importedImage = null
     }
 }
 

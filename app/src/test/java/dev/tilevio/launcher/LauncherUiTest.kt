@@ -5,6 +5,8 @@ package dev.tilevio.launcher
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.net.Uri
 import android.provider.Settings
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsMatcher
@@ -64,6 +66,137 @@ class LauncherUiTest {
         composeRule.onNodeWithText("Slate").assertIsDisplayed()
         composeRule.onNodeWithText("Warm Gray").assertIsDisplayed()
         composeRule.onNodeWithText("Custom color").assertDoesNotExist()
+    }
+
+    @Test
+    fun selectingImageDocumentImportsAndAppliesWallpaperImmediately() {
+        val importedImage = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.RED)
+        }
+        testApplication.wallpaperStore.imageToImport = importedImage
+        launchLauncher()
+        openSettings()
+
+        val picker = openImagePicker()
+        assertEquals(Intent.ACTION_OPEN_DOCUMENT, picker.action)
+        assertEquals(listOf("image/*"), picker.getStringArrayExtra(Intent.EXTRA_MIME_TYPES)?.toList())
+        completeImageSelection(picker, "content://example/wallpaper")
+
+        assertEquals(Uri.parse("content://example/wallpaper"), testApplication.wallpaperStore.importedUri)
+        assertEquals(true, testApplication.wallpaperStore.importWidth > 0)
+        assertEquals(true, testApplication.wallpaperStore.importHeight > 0)
+        composeRule.onNodeWithText("Choose image").assertIsSelected()
+        assertEquals(Color.RED, wallpaperPixel())
+    }
+
+    @Test
+    fun imageSelectionStillAppliesAfterActivityRecreationInDocumentPicker() {
+        testApplication.wallpaperStore.imageToImport = Bitmap.createBitmap(
+            4,
+            4,
+            Bitmap.Config.ARGB_8888,
+        ).apply { eraseColor(Color.RED) }
+        launchLauncher()
+        openSettings()
+        val picker = openImagePicker()
+
+        composeRule.activity.recreate()
+        composeRule.waitForIdle()
+        completeImageSelection(picker, "content://example/wallpaper")
+
+        assertEquals(1, testApplication.wallpaperStore.importCount)
+        assertEquals(Color.RED, wallpaperPixel())
+    }
+
+    @Test
+    fun importedWallpaperSurvivesRecreationWithoutOriginalDocument() {
+        testApplication.wallpaperStore.imageToImport = Bitmap.createBitmap(
+            4,
+            4,
+            Bitmap.Config.ARGB_8888,
+        ).apply { eraseColor(Color.RED) }
+        launchLauncher()
+        openSettings()
+        val picker = openImagePicker()
+        completeImageSelection(picker, "content://example/wallpaper")
+        composeRule.runOnUiThread {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.waitForIdle()
+
+        testApplication.wallpaperStore.sourceAvailable = false
+        composeRule.activity.recreate()
+        composeRule.waitForIdle()
+
+        assertEquals(Color.RED, wallpaperPixel())
+        assertEquals(1, testApplication.wallpaperStore.importCount)
+    }
+
+    @Test
+    fun invalidImageShowsErrorAndPreservesPreviousWallpaper() {
+        launchLauncher()
+        openSettings()
+        composeRule.onNodeWithText("Slate").requestFocus()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+
+        completeImageSelection(openImagePicker(), "content://example/invalid")
+
+        assertWallpaperImportFailure()
+        composeRule.onNodeWithText("Slate").assertIsSelected()
+        assertEquals(0xFF263238.toInt(), wallpaperPixel())
+    }
+
+    @Test
+    fun failedImageCopyShowsErrorAndPreservesPreviousWallpaper() {
+        testApplication.wallpaperStore.imageToImport = Bitmap.createBitmap(
+            4,
+            4,
+            Bitmap.Config.ARGB_8888,
+        ).apply { eraseColor(Color.RED) }
+        launchLauncher()
+        openSettings()
+        completeImageSelection(openImagePicker(), "content://example/first")
+        assertEquals(Color.RED, wallpaperPixel())
+
+        testApplication.wallpaperStore.importFailure = java.io.IOException("Copy failed")
+        completeImageSelection(openImagePicker(), "content://example/second")
+
+        assertWallpaperImportFailure()
+        composeRule.onNodeWithText("Choose image").assertIsSelected()
+        assertEquals(Color.RED, wallpaperPixel())
+    }
+
+    @Test
+    fun importedWallpaperFillsScreenWithPreservedAspectRatioAndCenterCrop() {
+        val image = Bitmap.createBitmap(400, 200, Bitmap.Config.ARGB_8888)
+        for (x in 0 until image.width) {
+            for (y in 0 until image.height) {
+                image.setPixel(
+                    x,
+                    y,
+                    when {
+                        x < 100 -> Color.RED
+                        x >= 300 -> Color.BLUE
+                        else -> Color.GREEN
+                    },
+                )
+            }
+        }
+        testApplication.wallpaperStore.imageToImport = image
+        launchLauncher()
+        openSettings()
+        completeImageSelection(openImagePicker(), "content://example/bands")
+        composeRule.runOnUiThread {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.waitForIdle()
+
+        val inset = composeRule.activity.window.decorView.width / 20
+        assertEquals(Color.GREEN, wallpaperPixel(x = inset))
+        assertEquals(
+            Color.GREEN,
+            wallpaperPixel(x = composeRule.activity.window.decorView.width - 1 - inset),
+        )
     }
 
     @Test
@@ -418,11 +551,36 @@ class LauncherUiTest {
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
     }
 
-    private fun wallpaperPixel(): Int = composeRule.runOnUiThread {
+    private fun openImagePicker(): Intent {
+        composeRule.onNodeWithText("Choose image").requestFocus()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        return shadowOf(composeRule.activity).nextStartedActivity
+    }
+
+    private fun completeImageSelection(picker: Intent, uri: String) {
+        shadowOf(composeRule.activity).receiveResult(
+            picker,
+            android.app.Activity.RESULT_OK,
+            Intent().setData(Uri.parse(uri)),
+        )
+        composeRule.waitForIdle()
+    }
+
+    private fun assertWallpaperImportFailure() {
+        composeRule.waitUntil {
+            runCatching {
+                composeRule.onNodeWithText(
+                    "Couldn't use that image. Your previous Wallpaper was kept.",
+                ).assertIsDisplayed()
+            }.isSuccess
+        }
+    }
+
+    private fun wallpaperPixel(x: Int = 0, y: Int = 0): Int = composeRule.runOnUiThread {
         val view = composeRule.activity.window.decorView
         val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
         view.draw(android.graphics.Canvas(bitmap))
-        bitmap.getPixel(0, 0)
+        bitmap.getPixel(x, y)
     }
 
     private fun visibleAppNames(): List<String> = composeRule

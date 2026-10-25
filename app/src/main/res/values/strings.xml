@@ -11,5 +11,7 @@
     <string name="wallpaper_graphite">Graphite</string>
     <string name="wallpaper_slate">Slate</string>
     <string name="wallpaper_warm_gray">Warm Gray</string>
+    <string name="choose_wallpaper_image">Choose image</string>
+    <string name="wallpaper_import_failure">Couldn\'t use that image. Your previous Wallpaper was kept.</string>
     <string name="version">Version %1$s</string>
 </resources>

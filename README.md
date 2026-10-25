@@ -8,7 +8,7 @@ A minimalist home screen for Android TV and Google TV, focused on one thing: ope
 
 - Icon grid of installed apps, navigable with the remote
 - Can be set as the default TV home screen
-- Solid-color wallpaper
+- Solid-color or imported local-image Wallpaper
 
 Low resource use is a permanent design rule: no resident services, no background work, no unnecessary animations or dependencies.
 

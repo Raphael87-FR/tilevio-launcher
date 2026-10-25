@@ -41,8 +41,9 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun SettingsScreen(
     isHomeRoleHeld: Boolean,
-    selectedWallpaper: Wallpaper,
+    selectedWallpaper: WallpaperSelection,
     onWallpaperSelected: (Wallpaper) -> Unit,
+    onChooseImage: () -> Unit,
     onActivateHomeRole: () -> Unit,
 ) {
     val activationFocusRequester = remember { FocusRequester() }
@@ -77,13 +78,23 @@ fun SettingsScreen(
                 maxItemsInEachRow = 2,
             ) {
                 Wallpaper.entries.forEach { wallpaper ->
+                    val isSelected = selectedWallpaper == WallpaperSelection.Solid(wallpaper)
                     WallpaperOption(
-                        wallpaper = wallpaper,
-                        isSelected = wallpaper == selectedWallpaper,
-                        requestInitialFocus = isHomeRoleHeld && wallpaper == selectedWallpaper,
+                        label = stringResource(wallpaper.labelRes),
+                        color = wallpaper.color,
+                        isSelected = isSelected,
+                        requestInitialFocus = isHomeRoleHeld && isSelected,
                         onClick = { onWallpaperSelected(wallpaper) },
                     )
                 }
+                val isImageSelected = selectedWallpaper is WallpaperSelection.Image
+                WallpaperOption(
+                    label = stringResource(R.string.choose_wallpaper_image),
+                    color = Color(0xFF292929),
+                    isSelected = isImageSelected,
+                    requestInitialFocus = isHomeRoleHeld && isImageSelected,
+                    onClick = onChooseImage,
+                )
             }
         }
         if (isHomeRoleHeld) {
@@ -116,7 +127,8 @@ fun SettingsScreen(
 
 @Composable
 private fun WallpaperOption(
-    wallpaper: Wallpaper,
+    label: String,
+    color: Color,
     isSelected: Boolean,
     requestInitialFocus: Boolean,
     onClick: () -> Unit,
@@ -131,14 +143,14 @@ private fun WallpaperOption(
         }
     }
     BasicText(
-        text = stringResource(wallpaper.labelRes),
+        text = label,
         modifier = Modifier
             .border(
                 width = if (focused || isSelected) 3.dp else 1.dp,
                 color = if (focused || isSelected) Color.White else Color(0xFF666666),
                 shape = shape,
             )
-            .background(wallpaper.color, shape)
+            .background(color, shape)
             .focusRequester(focusRequester)
             .onFocusChanged { state -> focused = state.isFocused }
             .onRemoteActivation(onClick)

@@ -1,8 +1,10 @@
 package dev.tilevio.launcher
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -26,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -42,10 +46,13 @@ fun LauncherScreen(
     isSettingsVisible: Boolean,
     onSettingsVisibilityChange: (Boolean) -> Unit,
     onActivateHomeRole: () -> Unit,
+    onPickWallpaperImage: () -> Unit,
+    wallpaperImageResult: WallpaperImageResult?,
+    onWallpaperImageResultHandled: () -> Unit,
 ) {
     var refreshVersion by remember { mutableIntStateOf(0) }
     var wallpaper by remember(dependencies.wallpaperStore) {
-        mutableStateOf(dependencies.wallpaperStore.wallpaper)
+        mutableStateOf(dependencies.wallpaperStore.selection)
     }
 
     LaunchedEffect(Unit) {
@@ -66,6 +73,7 @@ fun LauncherScreen(
     var focusedAppKey by remember { mutableStateOf<String?>(null) }
     var focusedIndex by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
+    val wallpaperImportFailureMessage = stringResource(R.string.wallpaper_import_failure)
 
     LaunchedEffect(apps, isSettingsVisible) {
         if (!isSettingsVisible) {
@@ -91,18 +99,50 @@ fun LauncherScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(wallpaper.color),
-    ) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        LaunchedEffect(wallpaperImageResult) {
+            val result = wallpaperImageResult ?: return@LaunchedEffect
+            onWallpaperImageResultHandled()
+            val uri = result.uri ?: return@LaunchedEffect
+            try {
+                wallpaper = withContext(Dispatchers.IO) {
+                    dependencies.wallpaperStore.importImage(
+                        uri = uri,
+                        width = constraints.maxWidth,
+                        height = constraints.maxHeight,
+                    )
+                }
+            } catch (exception: Exception) {
+                message = wallpaperImportFailureMessage
+            }
+        }
+        when (val currentWallpaper = wallpaper) {
+            is WallpaperSelection.Solid -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(currentWallpaper.wallpaper.color),
+            )
+            is WallpaperSelection.Image -> Image(
+                bitmap = currentWallpaper.bitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        }
         if (isSettingsVisible) {
             SettingsScreen(
                 isHomeRoleHeld = isHomeRoleHeld,
                 selectedWallpaper = wallpaper,
                 onWallpaperSelected = { selected ->
-                    wallpaper = selected
+                    wallpaper = WallpaperSelection.Solid(selected)
                     dependencies.wallpaperStore.wallpaper = selected
+                },
+                onChooseImage = {
+                    try {
+                        onPickWallpaperImage()
+                    } catch (exception: Exception) {
+                        message = wallpaperImportFailureMessage
+                    }
                 },
                 onActivateHomeRole = onActivateHomeRole,
             )

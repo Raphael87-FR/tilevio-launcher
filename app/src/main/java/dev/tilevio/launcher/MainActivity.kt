@@ -1,6 +1,7 @@
 package dev.tilevio.launcher
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.addCallback
@@ -20,6 +21,12 @@ class MainActivity : ComponentActivity() {
     ) {
         homeRoleVersion++
     }
+    private var wallpaperImageResult by mutableStateOf<WallpaperImageResult?>(null)
+    private val wallpaperImageRequest = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        wallpaperImageResult = WallpaperImageResult(uri)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,6 +43,9 @@ class MainActivity : ComponentActivity() {
                 isSettingsVisible = isSettingsVisible,
                 onSettingsVisibilityChange = { isSettingsVisible = it },
                 onActivateHomeRole = ::activateHomeRole,
+                onPickWallpaperImage = { wallpaperImageRequest.launch(arrayOf("image/*")) },
+                wallpaperImageResult = wallpaperImageResult,
+                onWallpaperImageResultHandled = { wallpaperImageResult = null },
             )
         }
     }
@@ -58,3 +68,5 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+class WallpaperImageResult(val uri: Uri?)
