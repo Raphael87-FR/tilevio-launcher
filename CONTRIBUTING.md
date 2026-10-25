@@ -1,80 +1,79 @@
-# Contribuer à Tilevio Launcher
+# Contributing to Tilevio Launcher
 
-Tilevio Launcher est développé et maintenu par une seule personne. Le projet
-reste volontairement minimaliste (voir
-[ADR 0001](docs/adr/0001-use-compose-for-tv.md)) : les pull requests externes
-ne sont pas acceptées sans accord préalable.
+Tilevio Launcher is built and maintained by a single person. The project is
+deliberately minimalist (see
+[ADR 0001](docs/adr/0001-use-compose-for-tv.md)): external pull requests are
+not accepted without prior agreement.
 
-## Signaler un bug ou proposer une idée
+## Reporting a bug or suggesting an idea
 
-C'est la meilleure façon de contribuer. Ouvrez un ticket sur
-[GitHub Issues](https://github.com/Raphael87-FR/tilevio-launcher/issues) avec :
+This is the best way to contribute. Open a ticket on
+[GitHub Issues](https://github.com/Raphael87-FR/tilevio-launcher/issues) with:
 
-- ce qui était attendu et ce qui s'est passé,
-- les étapes pour reproduire,
-- le modèle de TV ou de boîtier et la version d'Android si pertinent,
-- une capture d'écran si utile.
+- what you expected and what happened,
+- the steps to reproduce,
+- the TV or streaming box model and the Android version, if relevant,
+- a screenshot if useful.
 
-Pour un sujet lié à la sécurité, n'ouvrez pas de ticket public : suivez
+For anything security-related, do not open a public issue: follow
 [SECURITY.md](SECURITY.md).
 
-Utilisez le vocabulaire défini dans [GLOSSARY.md](GLOSSARY.md) (Launcher, App,
+Use the vocabulary defined in [GLOSSARY.md](GLOSSARY.md) (Launcher, App,
 Tile, Wallpaper…).
 
-## Mise en route
+## Getting started
 
-Prérequis : JDK 17 ou plus et le SDK Android (compile SDK 36).
+Requirements: JDK 17 or later and the Android SDK (compile SDK 36).
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-## Vérifications avant de proposer un changement
+## Checks before proposing a change
 
 ```bash
 ./gradlew test assembleDebug
 ```
 
-Ce sont les mêmes vérifications que la CI ([ci.yml](.github/workflows/ci.yml)).
+These are the same checks as the CI ([ci.yml](.github/workflows/ci.yml)).
 
-## Convention de message de commit
+## Commit message convention
 
-Les messages de commit sont courts, descriptifs et en anglais, au format
-[Conventional Commits](https://www.conventionalcommits.org/) :
+Commit messages are short, descriptive and in English, following
+[Conventional Commits](https://www.conventionalcommits.org/):
 
 ```text
 <type>: <description>
 ```
 
-Types courants : `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`,
+Common types: `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `build`,
 `ci`, `chore`, `revert`.
 
-Pour un commit qui implémente un ticket, le message prend la forme
-`implement closed #<n>: <description>`, avec `closed` juste après
-`implement`, afin que GitHub ferme le ticket.
+A commit that implements an issue uses the form
+`implement closed #<n>: <description>`, with `closed` right after
+`implement`, so that GitHub closes the issue.
 
-## Suivi du travail
+## Tracking work
 
-Les tickets vivent sur GitHub Issues (voir
+Issues live on GitHub Issues (see
 [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md)).
 
-## Étiquettes des tickets
+## Issue labels
 
-Chaque ticket reçoit des étiquettes (labels) pour indiquer où il en est.
-Celles de suivi, décrites dans
-[docs/agents/triage-labels.md](docs/agents/triage-labels.md) :
+Each issue gets labels showing where it stands. The triage labels, described
+in [docs/agents/triage-labels.md](docs/agents/triage-labels.md):
 
-- `needs-triage` — le mainteneur doit l'évaluer,
-- `needs-info` — en attente d'informations de la part de l'auteur du ticket,
-- `ready-for-agent` — entièrement spécifié, prêt à être traité par un agent,
-- `ready-for-human` — à implémenter à la main,
-- `wontfix` — ne sera pas traité.
+- `needs-triage`: the maintainer needs to evaluate it,
+- `needs-info`: waiting on the reporter for more information,
+- `ready-for-agent`: fully specified, ready for an agent to pick up,
+- `ready-for-human`: requires human implementation,
+- `wontfix`: will not be actioned.
 
-Les étiquettes de type : `bug` (quelque chose ne fonctionne pas),
-`enhancement` (nouvelle fonctionnalité), `documentation`, `accessibility`
-(obstacle pour les personnes en situation de handicap), `question`,
-`duplicate`, `invalid`, `good first issue` et `help wanted`.
+The type labels: `bug` (something isn't working), `enhancement` (new
+feature), `documentation`, `accessibility` (barrier for people with
+disabilities), `question`, `duplicate`, `invalid`, `good first issue` and
+`help wanted`.
 
-## Licence
+## License
 
-Voir [LICENSE](LICENSE).
+See [LICENSE](LICENSE).
