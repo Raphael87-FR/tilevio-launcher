@@ -36,26 +36,48 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
-fun LauncherScreen(dependencies: LauncherDependencies) {
+fun LauncherScreen(
+    dependencies: LauncherDependencies,
+    homeRoleVersion: Int,
+    isSettingsVisible: Boolean,
+    onSettingsVisibilityChange: (Boolean) -> Unit,
+    onActivateHomeRole: () -> Unit,
+) {
     var refreshVersion by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        if (!dependencies.homeRole.isHeld && !dependencies.homeRolePromptStore.hasHandledInitialRequest) {
+            dependencies.homeRolePromptStore.hasHandledInitialRequest = true
+            onActivateHomeRole()
+        }
+    }
     val apps by produceState(initialValue = emptyList(), dependencies.catalog, refreshVersion) {
         value = withContext(Dispatchers.IO) { dependencies.catalog.loadApps() }
     }
+    val isHomeRoleHeld = remember(dependencies.homeRole, homeRoleVersion) {
+        dependencies.homeRole.isHeld
+    }
     val gridState = rememberLazyGridState()
     val focusRequesters = remember { mutableStateMapOf<String, FocusRequester>() }
+    val settingsFocusRequester = remember { FocusRequester() }
     var focusedAppKey by remember { mutableStateOf<String?>(null) }
     var focusedIndex by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(apps) {
-        if (apps.isNotEmpty()) {
-            val matchingIndex = apps.indexOfFirst { app -> app.key == focusedAppKey }
-            val targetIndex = matchingIndex
-                .takeIf { index -> index >= 0 }
-                ?: focusedIndex.coerceIn(apps.indices)
-            gridState.scrollToItem(targetIndex)
-            withFrameNanos { }
-            focusRequesters[apps[targetIndex].key]?.requestFocus()
+    LaunchedEffect(apps, isSettingsVisible) {
+        if (!isSettingsVisible) {
+            if (apps.isNotEmpty()) {
+                val matchingIndex = apps.indexOfFirst { app -> app.key == focusedAppKey }
+                val targetIndex = matchingIndex
+                    .takeIf { index -> index >= 0 }
+                    ?: focusedIndex.coerceIn(apps.indices)
+                gridState.scrollToItem(targetIndex)
+                withFrameNanos { }
+                focusRequesters[apps[targetIndex].key]?.requestFocus()
+            } else {
+                withFrameNanos { }
+                settingsFocusRequester.requestFocus()
+            }
         }
     }
 
@@ -71,38 +93,54 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
             .fillMaxSize()
             .background(Color(0xFF171717)),
     ) {
-        if (apps.isEmpty()) {
-            EmptyCatalog()
+        if (isSettingsVisible) {
+            SettingsScreen(
+                isHomeRoleHeld = isHomeRoleHeld,
+                onActivateHomeRole = onActivateHomeRole,
+            )
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 112.dp),
-                modifier = Modifier.fillMaxSize(),
-                state = gridState,
-                contentPadding = PaddingValues(32.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-            ) {
-                itemsIndexed(
-                    items = apps,
-                    key = { _, app -> app.key },
-                ) { index, app ->
-                    val launchFailureMessage = stringResource(R.string.launch_failure, app.label)
-                    AppTile(
-                        app = app,
-                        focusRequester = focusRequesters.getOrPut(app.key) { FocusRequester() },
-                        onFocused = {
-                            focusedAppKey = app.key
-                            focusedIndex = index
-                        },
-                        onOpen = {
-                            if (!dependencies.appLauncher.launch(app)) {
-                                message = launchFailureMessage
-                                refreshVersion++
-                            }
-                        },
-                    )
+            if (apps.isEmpty()) {
+                EmptyCatalog()
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 112.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    state = gridState,
+                    contentPadding = PaddingValues(32.dp),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                ) {
+                    itemsIndexed(
+                        items = apps,
+                        key = { _, app -> app.key },
+                    ) { index, app ->
+                        val launchFailureMessage = stringResource(R.string.launch_failure, app.label)
+                        AppTile(
+                            app = app,
+                            focusRequester = focusRequesters.getOrPut(app.key) { FocusRequester() },
+                            upFocusRequester = settingsFocusRequester.takeIf { index == 0 },
+                            onFocused = {
+                                focusedAppKey = app.key
+                                focusedIndex = index
+                            },
+                            onOpen = {
+                                if (!dependencies.appLauncher.launch(app)) {
+                                    message = launchFailureMessage
+                                    refreshVersion++
+                                }
+                            },
+                        )
+                    }
                 }
             }
+            TextAction(
+                text = stringResource(R.string.settings),
+                onClick = { onSettingsVisibilityChange(true) },
+                focusRequester = settingsFocusRequester,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(24.dp),
+            )
         }
 
         message?.let { text ->
