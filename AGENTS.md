@@ -1,3 +1,10 @@
+## Working principles
+
+- State assumptions and ask when requirements are ambiguous.
+- Keep the implementation minimal and scoped to the request; match the existing style.
+- Keep unrelated code and formatting unchanged, and clean up code made unused by your changes.
+- For multi-step work, define verifiable success criteria and run the project's standard checks before declaring completion.
+
 ## Agent skills
 
 ### Issue tracker
@@ -14,5 +21,5 @@ Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents
 
 ### Commit messages
 
-Use Conventional Commits prefixes such as `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, and `test:`.
+Write commit messages in English, using scoped Conventional Commits subjects such as `feat(home): ...`, `fix(quiz): ...`, and `chore(build): ...`.
 In commit messages, place `closed` immediately after `implement`.
