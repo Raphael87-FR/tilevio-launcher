@@ -44,6 +44,9 @@ fun LauncherScreen(
     onActivateHomeRole: () -> Unit,
 ) {
     var refreshVersion by remember { mutableIntStateOf(0) }
+    var wallpaper by remember(dependencies.wallpaperStore) {
+        mutableStateOf(dependencies.wallpaperStore.wallpaper)
+    }
 
     LaunchedEffect(Unit) {
         if (!dependencies.homeRole.isHeld && !dependencies.homeRolePromptStore.hasHandledInitialRequest) {
@@ -91,11 +94,16 @@ fun LauncherScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF171717)),
+            .background(wallpaper.color),
     ) {
         if (isSettingsVisible) {
             SettingsScreen(
                 isHomeRoleHeld = isHomeRoleHeld,
+                selectedWallpaper = wallpaper,
+                onWallpaperSelected = { selected ->
+                    wallpaper = selected
+                    dependencies.wallpaperStore.wallpaper = selected
+                },
                 onActivateHomeRole = onActivateHomeRole,
             )
         } else {

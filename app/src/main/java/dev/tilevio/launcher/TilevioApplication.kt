@@ -12,6 +12,7 @@ open class TilevioApplication : Application() {
             appLauncher = AndroidAppLauncher(this),
             homeRole = AndroidHomeRole(this),
             homeRolePromptStore = SharedPreferencesHomeRolePromptStore(this),
+            wallpaperStore = SharedPreferencesWallpaperStore(this),
         )
     }
 }
