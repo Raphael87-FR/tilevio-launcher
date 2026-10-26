@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tilevio</string>
+    <string name="empty_catalog">Aucune application à ouvrir. Installez une application, puis revenez dans Tilevio.</string>
+    <string name="launch_failure">Impossible d’ouvrir %1$s. La liste des applications a été actualisée.</string>
+    <string name="settings">Paramètres</string>
+    <string name="apps">Applications</string>
+    <string name="shown">Visible</string>
+    <string name="hidden">Masquée</string>
+    <string name="all_apps_hidden">Toutes les applications sont masquées. Ouvrez les paramètres pour en afficher une à nouveau.</string>
+    <string name="set_default_home">Définir Tilevio comme écran d’accueil par défaut</string>
+    <string name="default_home_active">Tilevio est votre écran d’accueil par défaut.</string>
+    <string name="wallpaper">Fond d’écran</string>
+    <string name="wallpaper_charcoal">Anthracite</string>
+    <string name="wallpaper_graphite">Graphite</string>
+    <string name="wallpaper_slate">Ardoise</string>
+    <string name="wallpaper_warm_gray">Gris chaud</string>
+    <string name="choose_wallpaper_image">Choisir une image</string>
+    <string name="wallpaper_import_failure">Impossible d’utiliser cette image. Le fond d’écran précédent a été conservé.</string>
+    <string name="version">Version %1$s</string>
+</resources>

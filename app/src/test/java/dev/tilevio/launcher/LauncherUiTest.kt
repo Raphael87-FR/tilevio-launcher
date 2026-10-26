@@ -692,6 +692,102 @@ class LauncherUiTest {
         ).assertDoesNotExist()
     }
 
+    @Test
+    @Config(qualifiers = "en")
+    fun englishLocaleUsesEnglishResources() {
+        launchLauncher()
+
+        composeRule.onNodeWithText(
+            "No apps available to open. Install an app and return to Tilevio.",
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("Settings").assertIsFocused()
+    }
+
+    @Test
+    @Config(qualifiers = "es")
+    fun unsupportedLocaleFallsBackToEnglish() {
+        launchLauncher()
+
+        composeRule.onNodeWithText(
+            "No apps available to open. Install an app and return to Tilevio.",
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("Settings").assertIsFocused()
+        composeRule.onNodeWithText("Paramètres").assertDoesNotExist()
+    }
+
+    @Test
+    @Config(qualifiers = "fr")
+    fun frenchLocaleLocalizesSettingsAndErrors() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+        testApplication.homeRole.isHeld = false
+        testApplication.homeRolePromptStore.hasHandledInitialRequest = true
+        launchLauncher()
+
+        composeRule.onNodeWithText("Paramètres").requestFocus()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        composeRule.onNodeWithText("Fond d’écran").assertIsDisplayed()
+        composeRule.onNodeWithText("Anthracite").assertExists()
+        composeRule.onNodeWithText("Graphite").assertExists()
+        composeRule.onNodeWithText("Ardoise").assertExists()
+        composeRule.onNodeWithText("Gris chaud").assertExists()
+        composeRule.onNodeWithText("Définir Tilevio comme écran d’accueil par défaut").assertExists()
+        composeRule.onNodeWithText("Version 0.1.0").assertIsDisplayed()
+        composeRule.onNodeWithText("Choisir une image").requestFocus()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        completeImageSelection(
+            shadowOf(composeRule.activity).nextStartedActivity,
+            "content://example/invalid",
+        )
+        assertWallpaperImportFailure(
+            "Impossible d’utiliser cette image. Le fond d’écran précédent a été conservé.",
+        )
+        focusAppInSettings("Alpha")
+        composeRule.onNodeWithText("Applications").assertIsDisplayed()
+        composeRule.onNodeWithText("Visible").assertIsDisplayed()
+        closeSettings()
+
+        testApplication.appLauncher.succeeds = false
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+
+        composeRule.onNodeWithText(
+            "Impossible d’ouvrir Alpha. La liste des applications a été actualisée.",
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "fr")
+    fun frenchLocaleLocalizesEmptyStatesAndKeepsSettingsAccessible() {
+        launchLauncher()
+        composeRule.onNodeWithText(
+            "Aucune application à ouvrir. Installez une application, puis revenez dans Tilevio.",
+        ).assertIsDisplayed()
+
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+        composeRule.runOnUiThread { testApplication.packageChangeEvents.emit() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Paramètres").requestFocus()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        changeAppVisibility("Alpha")
+        closeSettings()
+
+        composeRule.onNodeWithText(
+            "Toutes les applications sont masquées. Ouvrez les paramètres pour en afficher une à nouveau.",
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("Paramètres").assertIsFocused()
+    }
+
+    @Test
+    fun tilesExposeAccessibleAppNamesWithoutVisibleText() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        launchLauncher()
+
+        composeRule.onNodeWithContentDescription("Alpha").assertIsDisplayed().assertIsFocused()
+        composeRule.onNodeWithText("Alpha").assertDoesNotExist()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        composeRule.onNodeWithContentDescription("Bravo").assertIsDisplayed().assertIsFocused()
+        composeRule.onNodeWithText("Bravo").assertDoesNotExist()
+    }
+
     private fun changeAppVisibility(label: String) {
         focusAppInSettings(label)
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
@@ -746,12 +842,12 @@ class LauncherUiTest {
         composeRule.waitForIdle()
     }
 
-    private fun assertWallpaperImportFailure() {
+    private fun assertWallpaperImportFailure(
+        message: String = "Couldn't use that image. Your previous Wallpaper was kept.",
+    ) {
         composeRule.waitUntil {
             runCatching {
-                composeRule.onNodeWithText(
-                    "Couldn't use that image. Your previous Wallpaper was kept.",
-                ).assertIsDisplayed()
+                composeRule.onNodeWithText(message).assertIsDisplayed()
             }.isSuccess
         }
     }
