@@ -5,8 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -28,6 +30,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -166,50 +169,62 @@ fun LauncherScreen(
                 onActivateHomeRole = onActivateHomeRole,
             )
         } else {
-            if (apps.isEmpty()) {
-                EmptyCatalog(R.string.empty_catalog)
-            } else if (visibleApps.isEmpty()) {
-                EmptyCatalog(R.string.all_apps_hidden)
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 112.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    state = gridState,
-                    contentPadding = PaddingValues(32.dp),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.CenterEnd,
                 ) {
-                    itemsIndexed(
-                        items = visibleApps,
-                        key = { _, app -> app.key },
-                    ) { index, app ->
-                        val launchFailureMessage = stringResource(R.string.launch_failure, app.label)
-                        AppTile(
-                            app = app,
-                            focusRequester = focusRequesters.getOrPut(app.key) { FocusRequester() },
-                            upFocusRequester = settingsFocusRequester.takeIf { index == 0 },
-                            onFocused = {
-                                focusedAppKey = app.key
-                                focusedIndex = index
-                            },
-                            onOpen = {
-                                if (!dependencies.appLauncher.launch(app)) {
-                                    message = launchFailureMessage
-                                    refreshVersion++
-                                }
-                            },
-                        )
+                    SettingsAction(
+                        onClick = { onSettingsVisibilityChange(true) },
+                        focusRequester = settingsFocusRequester,
+                        modifier = Modifier.focusProperties {
+                            visibleApps.getOrNull(focusedIndex)?.let { app ->
+                                down = focusRequesters.getOrPut(app.key) { FocusRequester() }
+                            }
+                        },
+                    )
+                }
+                Box(modifier = Modifier.weight(1f)) {
+                    if (apps.isEmpty()) {
+                        EmptyCatalog(R.string.empty_catalog)
+                    } else if (visibleApps.isEmpty()) {
+                        EmptyCatalog(R.string.all_apps_hidden)
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 112.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            state = gridState,
+                            contentPadding = PaddingValues(32.dp),
+                            horizontalArrangement = Arrangement.spacedBy(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(24.dp),
+                        ) {
+                            itemsIndexed(
+                                items = visibleApps,
+                                key = { _, app -> app.key },
+                            ) { index, app ->
+                                val launchFailureMessage = stringResource(R.string.launch_failure, app.label)
+                                AppTile(
+                                    app = app,
+                                    focusRequester = focusRequesters.getOrPut(app.key) { FocusRequester() },
+                                    upFocusRequester = settingsFocusRequester.takeIf { index == 0 },
+                                    onFocused = {
+                                        focusedAppKey = app.key
+                                        focusedIndex = index
+                                    },
+                                    onOpen = {
+                                        if (!dependencies.appLauncher.launch(app)) {
+                                            message = launchFailureMessage
+                                            refreshVersion++
+                                        }
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
-            TextAction(
-                text = stringResource(R.string.settings),
-                onClick = { onSettingsVisibilityChange(true) },
-                focusRequester = settingsFocusRequester,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(24.dp),
-            )
         }
 
         message?.let { text ->

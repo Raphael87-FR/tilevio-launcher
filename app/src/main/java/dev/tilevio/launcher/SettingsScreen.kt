@@ -36,6 +36,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
@@ -242,6 +243,39 @@ private fun WallpaperOption(
             }
             .padding(horizontal = 20.dp, vertical = 12.dp),
         style = TextStyle(color = Color.White, fontSize = 18.sp),
+    )
+}
+
+@Composable
+fun SettingsAction(
+    onClick: () -> Unit,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    Image(
+        painter = painterResource(R.drawable.ic_settings),
+        contentDescription = stringResource(R.string.settings),
+        modifier = modifier
+            .size(48.dp)
+            .border(
+                width = if (focused) 3.dp else 1.dp,
+                color = if (focused) Color.White else Color(0xFF666666),
+                shape = shape,
+            )
+            .background(Color(0xFF292929), shape)
+            .focusRequester(focusRequester)
+            .onFocusChanged { state -> focused = state.isFocused }
+            .onRemoteActivation(onClick)
+            .focusable()
+            .semantics {
+                onClick {
+                    onClick()
+                    true
+                }
+            }
+            .padding(12.dp),
     )
 }
 
