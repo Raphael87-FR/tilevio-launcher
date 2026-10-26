@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -64,6 +65,16 @@ fun LauncherScreen(
     val apps by produceState(initialValue = emptyList(), dependencies.catalog, refreshVersion) {
         value = withContext(Dispatchers.IO) { dependencies.catalog.loadApps() }
     }
+    var hiddenPackageNames by remember(dependencies.appVisibilityStore) {
+        mutableStateOf(dependencies.appVisibilityStore.hiddenPackageNames)
+    }
+    val visibleApps = apps.filterNot { app ->
+        app.componentName.packageName in hiddenPackageNames
+    }
+    DisposableEffect(dependencies.packageChangeEvents) {
+        val unregister = dependencies.packageChangeEvents.register { refreshVersion++ }
+        onDispose(unregister)
+    }
     val isHomeRoleHeld = remember(dependencies.homeRole, homeRoleVersion) {
         dependencies.homeRole.isHeld
     }
@@ -75,16 +86,16 @@ fun LauncherScreen(
     var message by remember { mutableStateOf<String?>(null) }
     val wallpaperImportFailureMessage = stringResource(R.string.wallpaper_import_failure)
 
-    LaunchedEffect(apps, isSettingsVisible) {
+    LaunchedEffect(visibleApps, isSettingsVisible) {
         if (!isSettingsVisible) {
-            if (apps.isNotEmpty()) {
-                val matchingIndex = apps.indexOfFirst { app -> app.key == focusedAppKey }
+            if (visibleApps.isNotEmpty()) {
+                val matchingIndex = visibleApps.indexOfFirst { app -> app.key == focusedAppKey }
                 val targetIndex = matchingIndex
                     .takeIf { index -> index >= 0 }
-                    ?: focusedIndex.coerceIn(apps.indices)
+                    ?: focusedIndex.coerceIn(visibleApps.indices)
                 gridState.scrollToItem(targetIndex)
                 withFrameNanos { }
-                focusRequesters[apps[targetIndex].key]?.requestFocus()
+                focusRequesters[visibleApps[targetIndex].key]?.requestFocus()
             } else {
                 withFrameNanos { }
                 settingsFocusRequester.requestFocus()
@@ -131,8 +142,14 @@ fun LauncherScreen(
         }
         if (isSettingsVisible) {
             SettingsScreen(
+                apps = apps,
+                hiddenPackageNames = hiddenPackageNames,
                 isHomeRoleHeld = isHomeRoleHeld,
                 selectedWallpaper = wallpaper,
+                onAppVisibilityChange = { packageName, hidden ->
+                    dependencies.appVisibilityStore.setHidden(packageName, hidden)
+                    hiddenPackageNames = dependencies.appVisibilityStore.hiddenPackageNames
+                },
                 onWallpaperSelected = { selected ->
                     wallpaper = WallpaperSelection.Solid(selected)
                     dependencies.wallpaperStore.wallpaper = selected
@@ -148,7 +165,9 @@ fun LauncherScreen(
             )
         } else {
             if (apps.isEmpty()) {
-                EmptyCatalog()
+                EmptyCatalog(R.string.empty_catalog)
+            } else if (visibleApps.isEmpty()) {
+                EmptyCatalog(R.string.all_apps_hidden)
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 112.dp),
@@ -159,7 +178,7 @@ fun LauncherScreen(
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     itemsIndexed(
-                        items = apps,
+                        items = visibleApps,
                         key = { _, app -> app.key },
                     ) { index, app ->
                         val launchFailureMessage = stringResource(R.string.launch_failure, app.label)
@@ -206,10 +225,10 @@ fun LauncherScreen(
 }
 
 @Composable
-private fun EmptyCatalog() {
+private fun EmptyCatalog(messageRes: Int) {
     Box(modifier = Modifier.fillMaxSize()) {
         BasicText(
-            text = stringResource(R.string.empty_catalog),
+            text = stringResource(messageRes),
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(32.dp),

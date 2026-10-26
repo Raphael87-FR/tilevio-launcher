@@ -10,11 +10,14 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -533,6 +536,183 @@ class LauncherUiTest {
         composeRule.onNodeWithText(
             "Couldn't open Bravo. The app list was refreshed.",
         ).assertDoesNotExist()
+    }
+
+    @Test
+    fun settingsListsEveryAppWithItsShownState() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        launchLauncher()
+
+        openSettings()
+
+        composeRule.onNodeWithText("Apps").assertIsDisplayed()
+        focusAppInSettings("Alpha")
+        composeRule.onNodeWithText("Alpha").assertIsDisplayed().assertIsNotSelected()
+        focusAppInSettings("Bravo")
+        composeRule.onNodeWithText("Bravo").assertIsDisplayed().assertIsNotSelected()
+        composeRule.onAllNodesWithText("Shown").assertCountEquals(2)
+    }
+
+    @Test
+    fun hidingAndShowingAppsUpdatesTheGridWithoutSaving() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        launchLauncher()
+        openSettings()
+
+        changeAppVisibility("Alpha")
+
+        composeRule.onNodeWithText("Alpha").assertIsSelected()
+        composeRule.onNodeWithText("Save").assertDoesNotExist()
+        closeSettings()
+        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
+        openSettings()
+        changeAppVisibility("Alpha")
+        composeRule.onNodeWithText("Alpha").assertIsNotSelected()
+        closeSettings()
+
+        assertEquals(listOf("Alpha", "Bravo"), visibleAppNames())
+        composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
+    }
+
+    @Test
+    fun hiddenAppSurvivesActivityRecreation() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        launchLauncher()
+        openSettings()
+        changeAppVisibility("Alpha")
+        closeSettings()
+
+        composeRule.activity.recreate()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Bravo").assertIsDisplayed()
+        openSettings()
+        focusAppInSettings("Alpha")
+        composeRule.onNodeWithText("Alpha").assertIsSelected()
+    }
+
+    @Test
+    fun visibilityChoicesAreIsolatedByAndroidProfile() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+        launchLauncher()
+        openSettings()
+        changeAppVisibility("Alpha")
+        closeSettings()
+
+        testApplication.appVisibilityStore.currentProfile = "work"
+        composeRule.activity.recreate()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription("Alpha").assertIsDisplayed()
+        openSettings()
+        focusAppInSettings("Alpha")
+        composeRule.onNodeWithText("Alpha").assertIsNotSelected()
+        testApplication.appVisibilityStore.currentProfile = "default"
+        closeSettings()
+        composeRule.activity.recreate()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
+    }
+
+    @Test
+    fun hiddenAppStaysHiddenAfterUninstallAndReinstall() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        launchLauncher()
+        openSettings()
+        changeAppVisibility("Alpha")
+        closeSettings()
+        testApplication.launchableApps.apps = listOf(app("Bravo", "bravo"))
+
+        composeRule.runOnUiThread { testApplication.packageChangeEvents.emit() }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        composeRule.runOnUiThread { testApplication.packageChangeEvents.emit() }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
+        openSettings()
+        focusAppInSettings("Alpha")
+        composeRule.onNodeWithText("Alpha").assertIsSelected()
+    }
+
+    @Test
+    fun hidingFocusedAppsUsesTheNearestAvailableTile() {
+        testApplication.launchableApps.apps = listOf(
+            app("Alpha", "alpha"),
+            app("Bravo", "bravo"),
+            app("Charlie", "charlie"),
+        )
+        launchLauncher()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        openSettings()
+
+        changeAppVisibility("Bravo")
+        closeSettings()
+
+        composeRule.onNodeWithContentDescription("Charlie").assertIsFocused()
+        openSettings()
+        changeAppVisibility("Charlie")
+        closeSettings()
+
+        composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
+        openSettings()
+        changeAppVisibility("Bravo")
+        closeSettings()
+
+        assertEquals(listOf("Alpha", "Bravo"), visibleAppNames())
+        composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
+    }
+
+    @Test
+    fun allHiddenStateKeepsSettingsAccessibleForRecovery() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        launchLauncher()
+        openSettings()
+        changeAppVisibility("Alpha")
+        changeAppVisibility("Bravo")
+
+        closeSettings()
+
+        composeRule.onNodeWithText(
+            "All Apps are hidden. Open Settings to show an App again.",
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("Settings").assertIsFocused()
+        openSettings()
+        changeAppVisibility("Alpha")
+        closeSettings()
+
+        composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
+        composeRule.onNodeWithText(
+            "All Apps are hidden. Open Settings to show an App again.",
+        ).assertDoesNotExist()
+    }
+
+    private fun changeAppVisibility(label: String) {
+        focusAppInSettings(label)
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+    }
+
+    private fun focusAppInSettings(label: String) {
+        repeat(20) {
+            if (composeRule.onAllNodesWithText(label).fetchSemanticsNodes().isNotEmpty()) {
+                composeRule.onNodeWithText(label).requestFocus()
+                return
+            }
+            composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        }
+        composeRule.onNodeWithText(label).requestFocus()
+    }
+
+    private fun closeSettings() {
+        composeRule.runOnUiThread {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.waitForIdle()
     }
 
     private fun launchLauncher() {

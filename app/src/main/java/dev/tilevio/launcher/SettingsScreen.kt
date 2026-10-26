@@ -1,15 +1,20 @@
 package dev.tilevio.launcher
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -25,6 +30,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -40,8 +46,11 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun SettingsScreen(
+    apps: List<App>,
+    hiddenPackageNames: Set<String>,
     isHomeRoleHeld: Boolean,
     selectedWallpaper: WallpaperSelection,
+    onAppVisibilityChange: (String, Boolean) -> Unit,
     onWallpaperSelected: (Wallpaper) -> Unit,
     onChooseImage: () -> Unit,
     onActivateHomeRole: () -> Unit,
@@ -53,47 +62,68 @@ fun SettingsScreen(
             activationFocusRequester.requestFocus()
         }
     }
-    Box(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
         BasicText(
             text = stringResource(R.string.settings),
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(32.dp),
+            modifier = Modifier.padding(32.dp),
             style = TextStyle(color = Color.White, fontSize = 28.sp),
         )
-        Column(
-            modifier = Modifier.align(Alignment.Center),
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            BasicText(
-                text = stringResource(R.string.wallpaper),
-                style = TextStyle(color = Color.White, fontSize = 20.sp),
-            )
-            FlowRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, top = 16.dp, end = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                maxItemsInEachRow = 2,
-            ) {
-                Wallpaper.entries.forEach { wallpaper ->
-                    val isSelected = selectedWallpaper == WallpaperSelection.Solid(wallpaper)
+            item {
+                BasicText(
+                    text = stringResource(R.string.wallpaper),
+                    style = TextStyle(color = Color.White, fontSize = 20.sp),
+                )
+            }
+            item {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    maxItemsInEachRow = 2,
+                ) {
+                    Wallpaper.entries.forEach { wallpaper ->
+                        val isSelected = selectedWallpaper == WallpaperSelection.Solid(wallpaper)
+                        WallpaperOption(
+                            label = stringResource(wallpaper.labelRes),
+                            color = wallpaper.color,
+                            isSelected = isSelected,
+                            requestInitialFocus = isHomeRoleHeld && isSelected,
+                            onClick = { onWallpaperSelected(wallpaper) },
+                        )
+                    }
+                    val isImageSelected = selectedWallpaper is WallpaperSelection.Image
                     WallpaperOption(
-                        label = stringResource(wallpaper.labelRes),
-                        color = wallpaper.color,
-                        isSelected = isSelected,
-                        requestInitialFocus = isHomeRoleHeld && isSelected,
-                        onClick = { onWallpaperSelected(wallpaper) },
+                        label = stringResource(R.string.choose_wallpaper_image),
+                        color = Color(0xFF292929),
+                        isSelected = isImageSelected,
+                        requestInitialFocus = isHomeRoleHeld && isImageSelected,
+                        onClick = onChooseImage,
                     )
                 }
-                val isImageSelected = selectedWallpaper is WallpaperSelection.Image
-                WallpaperOption(
-                    label = stringResource(R.string.choose_wallpaper_image),
-                    color = Color(0xFF292929),
-                    isSelected = isImageSelected,
-                    requestInitialFocus = isHomeRoleHeld && isImageSelected,
-                    onClick = onChooseImage,
+            }
+            item {
+                BasicText(
+                    text = stringResource(R.string.apps),
+                    modifier = Modifier.padding(top = 16.dp),
+                    style = TextStyle(color = Color.White, fontSize = 20.sp),
+                )
+            }
+            items(apps, key = { app -> app.key }) { app ->
+                val packageName = app.componentName.packageName
+                AppVisibilityOption(
+                    app = app,
+                    isHidden = packageName in hiddenPackageNames,
+                    onClick = {
+                        onAppVisibilityChange(packageName, packageName !in hiddenPackageNames)
+                    },
                 )
             }
         }
@@ -101,8 +131,8 @@ fun SettingsScreen(
             BasicText(
                 text = stringResource(R.string.default_home_active),
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 96.dp),
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 16.dp),
                 style = TextStyle(color = Color.White, fontSize = 20.sp),
             )
         } else {
@@ -111,15 +141,63 @@ fun SettingsScreen(
                 onClick = onActivateHomeRole,
                 focusRequester = activationFocusRequester,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 96.dp),
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 16.dp),
             )
         }
         BasicText(
             text = stringResource(R.string.version, BuildConfig.VERSION_NAME),
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(32.dp),
+                .align(Alignment.CenterHorizontally)
+                .padding(24.dp),
+            style = TextStyle(color = Color.White, fontSize = 18.sp),
+        )
+    }
+}
+
+@Composable
+private fun AppVisibilityOption(
+    app: App,
+    isHidden: Boolean,
+    onClick: () -> Unit,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = if (focused) 3.dp else 1.dp,
+                color = if (focused) Color.White else Color(0xFF666666),
+                shape = shape,
+            )
+            .background(Color(0xFF292929), shape)
+            .onFocusChanged { state -> focused = state.isFocused }
+            .onRemoteActivation(onClick)
+            .focusable()
+            .semantics(mergeDescendants = true) {
+                selected = isHidden
+                onClick {
+                    onClick()
+                    true
+                }
+            }
+            .padding(16.dp),
+    ) {
+        Image(
+            bitmap = app.icon.asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+        )
+        BasicText(
+            text = app.label,
+            modifier = Modifier.weight(1f),
+            style = TextStyle(color = Color.White, fontSize = 18.sp),
+        )
+        BasicText(
+            text = stringResource(if (isHidden) R.string.hidden else R.string.shown),
             style = TextStyle(color = Color.White, fontSize = 18.sp),
         )
     }

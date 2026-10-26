@@ -8,6 +8,8 @@ import android.provider.Settings
 class TestTilevioApplication : TilevioApplication() {
     val launchableApps = FakeLaunchableApps()
     val appLauncher = FakeAppLauncher()
+    val appVisibilityStore = FakeAppVisibilityStore()
+    val packageChangeEvents = FakePackageChangeEvents()
     val homeRole = FakeHomeRoleAdapter()
     val homeRolePromptStore = FakeHomeRolePromptStore()
     val wallpaperStore = FakeWallpaperStore()
@@ -23,6 +25,8 @@ class TestTilevioApplication : TilevioApplication() {
                     appLauncher.launch(app)
                 }
             },
+            appVisibilityStore = appVisibilityStore,
+            packageChangeEvents = packageChangeEvents,
             homeRole = homeRole,
             homeRolePromptStore = homeRolePromptStore,
             wallpaperStore = wallpaperStore,
@@ -33,6 +37,8 @@ class TestTilevioApplication : TilevioApplication() {
         launchableApps.apps = emptyList()
         appLauncher.launchedApps.clear()
         appLauncher.succeeds = true
+        appVisibilityStore.reset()
+        packageChangeEvents.reset()
         homeRole.isAvailable = true
         homeRole.isHeld = true
         homeRole.requestIntents.clear()
@@ -40,6 +46,42 @@ class TestTilevioApplication : TilevioApplication() {
         homeRolePromptStore.hasHandledInitialRequest = false
         wallpaperStore.reset()
         useAndroidAppLauncher = false
+    }
+}
+
+class FakeAppVisibilityStore : AppVisibilityStore {
+    var currentProfile = "default"
+    private val hiddenPackagesByProfile = mutableMapOf<String, Set<String>>()
+
+    override val hiddenPackageNames: Set<String>
+        get() = hiddenPackagesByProfile[currentProfile].orEmpty()
+
+    override fun setHidden(packageName: String, hidden: Boolean) {
+        hiddenPackagesByProfile[currentProfile] = hiddenPackageNames.toMutableSet().apply {
+            if (hidden) add(packageName) else remove(packageName)
+        }
+    }
+
+    fun reset() {
+        currentProfile = "default"
+        hiddenPackagesByProfile.clear()
+    }
+}
+
+class FakePackageChangeEvents : PackageChangeEvents {
+    private var onChange: (() -> Unit)? = null
+
+    override fun register(onChange: () -> Unit): () -> Unit {
+        this.onChange = onChange
+        return { this.onChange = null }
+    }
+
+    fun emit() {
+        onChange?.invoke()
+    }
+
+    fun reset() {
+        onChange = null
     }
 }
 

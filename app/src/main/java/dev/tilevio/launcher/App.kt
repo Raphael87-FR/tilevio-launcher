@@ -49,6 +49,8 @@ fun interface AppLauncher {
 data class LauncherDependencies(
     val catalog: AppCatalog,
     val appLauncher: AppLauncher,
+    val appVisibilityStore: AppVisibilityStore,
+    val packageChangeEvents: PackageChangeEvents,
     val homeRole: HomeRoleAdapter,
     val homeRolePromptStore: HomeRolePromptStore,
     val wallpaperStore: WallpaperStore,

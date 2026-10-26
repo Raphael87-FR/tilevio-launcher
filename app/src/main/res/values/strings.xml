@@ -4,6 +4,10 @@
     <string name="empty_catalog">No apps available to open. Install an app and return to Tilevio.</string>
     <string name="launch_failure">Couldn\'t open %1$s. The app list was refreshed.</string>
     <string name="settings">Settings</string>
+    <string name="apps">Apps</string>
+    <string name="shown">Shown</string>
+    <string name="hidden">Hidden</string>
+    <string name="all_apps_hidden">All Apps are hidden. Open Settings to show an App again.</string>
     <string name="set_default_home">Set Tilevio as default home</string>
     <string name="default_home_active">Tilevio is your default home screen.</string>
     <string name="wallpaper">Wallpaper</string>

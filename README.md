@@ -7,6 +7,7 @@ A minimalist home screen for Android TV and Google TV, focused on one thing: ope
 ## Features
 
 - Icon grid of installed apps, navigable with the remote
+- Per-profile controls to show and hide Apps from settings
 - Can be set as the default TV home screen
 - Solid-color or imported local-image Wallpaper
 
