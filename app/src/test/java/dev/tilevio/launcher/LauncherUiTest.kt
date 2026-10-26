@@ -405,7 +405,36 @@ class LauncherUiTest {
         assertEquals(false, activity.isFinishing)
         assertEquals(false, activity.isDestroyed)
         composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
-        composeRule.onNodeWithText("Settings").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
+    }
+
+    @Test
+    fun settingsGearExposesAccessibleLabelWithoutVisibleText() {
+        launchLauncher()
+
+        composeRule.onNodeWithContentDescription("Settings").assertIsDisplayed().assertIsFocused()
+        composeRule.onAllNodesWithText("Settings").assertCountEquals(0)
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h720dp")
+    fun settingsGearDoesNotOverlapAnyAppTile() {
+        testApplication.launchableApps.apps = (1..12).map { index ->
+            app("App $index", "app$index")
+        }
+        launchLauncher()
+        val settingsBounds = composeRule.onNodeWithContentDescription("Settings")
+            .fetchSemanticsNode().boundsInRoot
+
+        composeRule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription))
+            .fetchSemanticsNodes()
+            .filterNot { node ->
+                node.config[SemanticsProperties.ContentDescription].single() == "Settings"
+            }
+            .forEach { node ->
+                val label = node.config[SemanticsProperties.ContentDescription].single()
+                assertEquals("Settings overlaps $label", false, settingsBounds.overlaps(node.boundsInRoot))
+            }
     }
 
     @Test
@@ -462,12 +491,24 @@ class LauncherUiTest {
 
         composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
-        composeRule.onNodeWithText("Settings").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         composeRule.onNodeWithText("Version 0.1.0").assertIsDisplayed()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
 
         assertEquals(1, testApplication.homeRole.requestIntents.size)
+    }
+
+    @Test
+    fun remoteInputLeavesSettingsButtonAndReturnsToApp() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+        launchLauncher()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
+
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+
+        composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
     }
 
     @Test
@@ -685,7 +726,7 @@ class LauncherUiTest {
         composeRule.onNodeWithText(
             "All Apps are hidden. Open Settings to show an App again.",
         ).assertIsDisplayed()
-        composeRule.onNodeWithText("Settings").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
         openSettings()
         changeAppVisibility("Alpha")
         closeSettings()
@@ -704,7 +745,7 @@ class LauncherUiTest {
         composeRule.onNodeWithText(
             "No apps available to open. Install an app and return to Tilevio.",
         ).assertIsDisplayed()
-        composeRule.onNodeWithText("Settings").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
     }
 
     @Test
@@ -715,8 +756,8 @@ class LauncherUiTest {
         composeRule.onNodeWithText(
             "No apps available to open. Install an app and return to Tilevio.",
         ).assertIsDisplayed()
-        composeRule.onNodeWithText("Settings").assertIsFocused()
-        composeRule.onNodeWithText("Paramètres").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Paramètres").assertDoesNotExist()
     }
 
     @Test
@@ -727,7 +768,7 @@ class LauncherUiTest {
         testApplication.homeRolePromptStore.hasHandledInitialRequest = true
         launchLauncher()
 
-        composeRule.onNodeWithText("Paramètres").requestFocus()
+        composeRule.onNodeWithContentDescription("Paramètres").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         composeRule.onNodeWithText("Fond d’écran").assertIsDisplayed()
         composeRule.onNodeWithText("Anthracite").assertExists()
@@ -769,7 +810,7 @@ class LauncherUiTest {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
         composeRule.runOnUiThread { testApplication.packageChangeEvents.emit() }
         composeRule.waitForIdle()
-        composeRule.onNodeWithText("Paramètres").requestFocus()
+        composeRule.onNodeWithContentDescription("Paramètres").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         changeAppVisibility("Alpha")
         closeSettings()
@@ -777,7 +818,7 @@ class LauncherUiTest {
         composeRule.onNodeWithText(
             "Toutes les applications sont masquées. Ouvrez les paramètres pour en afficher une à nouveau.",
         ).assertIsDisplayed()
-        composeRule.onNodeWithText("Paramètres").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Paramètres").assertIsFocused()
     }
 
     @Test
@@ -821,7 +862,7 @@ class LauncherUiTest {
     }
 
     private fun openSettings() {
-        composeRule.onNodeWithText("Settings").requestFocus()
+        composeRule.onNodeWithContentDescription("Settings").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         composeRule.onNodeWithText("Version 0.1.0").assertIsDisplayed()
     }
@@ -878,6 +919,7 @@ class LauncherUiTest {
         .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription))
         .fetchSemanticsNodes()
         .map { node -> node.config[SemanticsProperties.ContentDescription].single() }
+        .filterNot { label -> label == "Settings" || label == "Paramètres" }
 
     private fun app(
         label: String,
