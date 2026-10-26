@@ -36,6 +36,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
@@ -246,17 +247,55 @@ private fun WallpaperOption(
 }
 
 @Composable
+fun SettingsAction(
+    onClick: () -> Unit,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier,
+) {
+    Action(
+        onClick = onClick,
+        focusRequester = focusRequester,
+        modifier = modifier.size(48.dp),
+    ) { actionModifier ->
+        Image(
+            painter = painterResource(R.drawable.ic_settings),
+            contentDescription = stringResource(R.string.settings),
+            modifier = actionModifier.padding(12.dp),
+        )
+    }
+}
+
+@Composable
 fun TextAction(
     text: String,
     onClick: () -> Unit,
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
+    Action(
+        onClick = onClick,
+        focusRequester = focusRequester,
+        modifier = modifier,
+    ) { actionModifier ->
+        BasicText(
+            text = text,
+            modifier = actionModifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            style = TextStyle(color = Color.White, fontSize = 20.sp),
+        )
+    }
+}
+
+@Composable
+private fun Action(
+    onClick: () -> Unit,
+    focusRequester: FocusRequester,
+    modifier: Modifier = Modifier,
+    content: @Composable (Modifier) -> Unit,
+) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(8.dp)
-    BasicText(
-        text = text,
-        modifier = modifier
+    content(
+        modifier
             .border(
                 width = if (focused) 3.dp else 1.dp,
                 color = if (focused) Color.White else Color(0xFF666666),
@@ -272,9 +311,7 @@ fun TextAction(
                     onClick()
                     true
                 }
-            }
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        style = TextStyle(color = Color.White, fontSize = 20.sp),
+            },
     )
 }
 
