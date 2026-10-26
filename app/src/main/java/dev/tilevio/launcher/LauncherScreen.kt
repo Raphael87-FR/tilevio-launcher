@@ -113,19 +113,21 @@ fun LauncherScreen(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         LaunchedEffect(wallpaperImageResult) {
             val result = wallpaperImageResult ?: return@LaunchedEffect
-            onWallpaperImageResultHandled()
-            val uri = result.uri ?: return@LaunchedEffect
-            try {
-                wallpaper = withContext(Dispatchers.IO) {
-                    dependencies.wallpaperStore.importImage(
-                        uri = uri,
-                        width = constraints.maxWidth,
-                        height = constraints.maxHeight,
-                    )
+            val uri = result.uri
+            if (uri != null) {
+                try {
+                    wallpaper = withContext(Dispatchers.IO) {
+                        dependencies.wallpaperStore.importImage(
+                            uri = uri,
+                            width = constraints.maxWidth,
+                            height = constraints.maxHeight,
+                        )
+                    }
+                } catch (exception: Exception) {
+                    message = wallpaperImportFailureMessage
                 }
-            } catch (exception: Exception) {
-                message = wallpaperImportFailureMessage
             }
+            onWallpaperImageResultHandled()
         }
         when (val currentWallpaper = wallpaper) {
             is WallpaperSelection.Solid -> Box(

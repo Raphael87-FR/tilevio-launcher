@@ -83,7 +83,7 @@ class LauncherUiTest {
         val picker = openImagePicker()
         assertEquals(Intent.ACTION_OPEN_DOCUMENT, picker.action)
         assertEquals(listOf("image/*"), picker.getStringArrayExtra(Intent.EXTRA_MIME_TYPES)?.toList())
-        completeImageSelection(picker, "content://example/wallpaper")
+        completeSuccessfulImageSelection(picker, "content://example/wallpaper")
 
         assertEquals(Uri.parse("content://example/wallpaper"), testApplication.wallpaperStore.importedUri)
         assertEquals(true, testApplication.wallpaperStore.importWidth > 0)
@@ -105,7 +105,7 @@ class LauncherUiTest {
 
         composeRule.activity.recreate()
         composeRule.waitForIdle()
-        completeImageSelection(picker, "content://example/wallpaper")
+        completeSuccessfulImageSelection(picker, "content://example/wallpaper")
 
         assertEquals(1, testApplication.wallpaperStore.importCount)
         assertEquals(Color.RED, wallpaperPixel())
@@ -121,7 +121,7 @@ class LauncherUiTest {
         launchLauncher()
         openSettings()
         val picker = openImagePicker()
-        completeImageSelection(picker, "content://example/wallpaper")
+        completeSuccessfulImageSelection(picker, "content://example/wallpaper")
         composeRule.runOnUiThread {
             composeRule.activity.onBackPressedDispatcher.onBackPressed()
         }
@@ -158,7 +158,7 @@ class LauncherUiTest {
         ).apply { eraseColor(Color.RED) }
         launchLauncher()
         openSettings()
-        completeImageSelection(openImagePicker(), "content://example/first")
+        completeSuccessfulImageSelection(openImagePicker(), "content://example/first")
         assertEquals(Color.RED, wallpaperPixel())
 
         testApplication.wallpaperStore.importFailure = java.io.IOException("Copy failed")
@@ -188,7 +188,11 @@ class LauncherUiTest {
         testApplication.wallpaperStore.imageToImport = image
         launchLauncher()
         openSettings()
-        completeImageSelection(openImagePicker(), "content://example/bands")
+        completeSuccessfulImageSelection(
+            openImagePicker(),
+            "content://example/bands",
+            expectedPixel = Color.GREEN,
+        )
         composeRule.runOnUiThread {
             composeRule.activity.onBackPressedDispatcher.onBackPressed()
         }
@@ -840,6 +844,17 @@ class LauncherUiTest {
             Intent().setData(Uri.parse(uri)),
         )
         composeRule.waitForIdle()
+    }
+
+    private fun completeSuccessfulImageSelection(
+        picker: Intent,
+        uri: String,
+        expectedPixel: Int = Color.RED,
+    ) {
+        completeImageSelection(picker, uri)
+        composeRule.waitUntil {
+            runCatching { wallpaperPixel() == expectedPixel }.getOrDefault(false)
+        }
     }
 
     private fun assertWallpaperImportFailure(
