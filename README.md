@@ -16,7 +16,7 @@ Low resource use is a permanent design rule: no resident services, no background
 ## Requirements
 
 - Android TV or Google TV device running Android 10 (API 29) or later
-- JDK 17 or later and the Android SDK (compile SDK 36) to build from source
+- JDK 17 or later and the Android SDK (compile SDK 37.2) to build from source
 
 ## Build and test
 

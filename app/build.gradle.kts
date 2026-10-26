@@ -5,7 +5,8 @@ plugins {
 
 android {
     namespace = "dev.tilevio.launcher"
-    compileSdk = 36
+    compileSdk = 37
+    compileSdkMinor = 2
 
     defaultConfig {
         applicationId = "dev.tilevio.launcher"
