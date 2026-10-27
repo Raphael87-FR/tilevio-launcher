@@ -35,6 +35,7 @@ Base: 4dp
 | `tile-surface` | Transparent | No added color behind App artwork |
 | `tile-border-resting` | Transparent | No permanent Tile frame |
 | `tile-border-focused` | `#FFFFFF` | Remote focus indication |
+| `tile-border-focus-contrast` | `#171717` | Inner contrast edge on light App artwork |
 | `settings-surface-resting` | Transparent | Gear without a permanent container |
 
 App banners and icons retain their original colors. Do not assign per-App brand colors or place artwork on invented card backgrounds.
@@ -44,7 +45,7 @@ App banners and icons retain their original colors. Do not assign per-App brand 
 | Token | Value |
 | --- | --- |
 | `tile-corner-radius` | 12dp |
-| `tile-focus-outline` | 4dp |
+| `tile-focus-outline` | 4dp white + 2dp inner contrast edge |
 | `tile-shadow` | None |
 | `tile-resting-frame` | None |
 
@@ -80,7 +81,7 @@ The clock follows the device's 12-hour or 24-hour preference and displays no sec
 - Clip artwork to the Tile's rounded shape, without internal artwork padding.
 - Add no background, shadow, visible resting border, or visible App label.
 - Keep the App name as the accessibility description.
-- Show a 4dp white outline on focus and preserve remote activation.
+- Show a 4dp white outline with a 2dp anthracite inner contrast edge on focus and preserve remote activation.
 
 ### Header clock
 

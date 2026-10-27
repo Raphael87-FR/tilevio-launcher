@@ -676,6 +676,20 @@ class LauncherUiTest {
     }
 
     @Test
+    @Config(qualifiers = "w1280dp-h720dp")
+    fun focusedWhiteBannerKeepsAVisibleContrastingEdge() {
+        val banner = Bitmap.createBitmap(32, 18, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.WHITE)
+        }
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha").copy(banner = banner))
+        launchLauncher()
+        composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
+
+        assertEquals(Color.WHITE, tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.02f))
+        assertEquals(0xFF171717.toInt(), tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.04f))
+    }
+
+    @Test
     fun mobileAppLaunchUsesTheRealAndroidAdapter() {
         testApplication.launchableApps.apps = listOf(
             app("Mobile", "mobile", televisionActivity = false),
