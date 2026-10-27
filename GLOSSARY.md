@@ -8,6 +8,10 @@ Tilevio Launcher is a minimalist TV home screen focused on opening installed app
 The TV home screen from which the user opens apps.
 _Avoid_: launcher app
 
+**Default Home**:
+The Launcher that the TV opens when the user presses the Home button. Tilevio offers to become the Default Home on first launch and from settings.
+_Avoid_: home role, default launcher
+
 **App**:
 An app installed on the TV that the user can open from the Launcher.
 _Avoid_: application
