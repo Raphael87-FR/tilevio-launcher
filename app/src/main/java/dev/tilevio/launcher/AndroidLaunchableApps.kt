@@ -26,6 +26,7 @@ class AndroidLaunchableApps(
                 label = resolveInfo.loadLabel(packageManager).toString(),
                 icon = resolveInfo.loadIcon(packageManager).toBoundedBitmap(),
                 isTelevisionEntry = category == Intent.CATEGORY_LEANBACK_LAUNCHER,
+                banner = activityInfo.loadBanner(packageManager)?.toBoundedBitmap(),
             )
         }
     }

@@ -4,8 +4,11 @@ package dev.tilevio.launcher
 
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.ui.input.key.Key
@@ -254,6 +257,64 @@ class LauncherUiTest {
         launchLauncher()
 
         assertEquals(listOf("Alpha", "Bravo", "Zulu"), visibleAppNames())
+    }
+
+    @Test
+    fun packageManagerLoadsBoundedTvBannerAndKeepsOriginalIcon() {
+        val packageName = "example.banner"
+        val iconResource = 1001
+        val bannerResource = 1002
+        val icon = Bitmap.createBitmap(64, 32, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.YELLOW)
+        }
+        val banner = Bitmap.createBitmap(384, 216, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.RED)
+        }
+        val packageManager = testApplication.packageManager
+        val shadowPackageManager = shadowOf(packageManager)
+        shadowPackageManager.addDrawableResolution(
+            packageName,
+            iconResource,
+            BitmapDrawable(testApplication.resources, icon),
+        )
+        shadowPackageManager.addDrawableResolution(
+            packageName,
+            bannerResource,
+            BitmapDrawable(testApplication.resources, banner),
+        )
+
+        fun entry(activityName: String, label: String, banner: Int = 0) = ResolveInfo().apply {
+            nonLocalizedLabel = label
+            activityInfo = ActivityInfo().apply {
+                this.packageName = packageName
+                name = "$packageName.$activityName"
+                this.icon = iconResource
+                this.banner = banner
+            }
+        }
+
+        shadowPackageManager.addResolveInfoForIntent(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER),
+            entry("TvActivity", "TV Alpha", bannerResource),
+        )
+        shadowPackageManager.addResolveInfoForIntent(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
+            entry("MobileActivity", "Mobile Alpha"),
+        )
+
+        val app = InstalledAppCatalog(
+            AndroidLaunchableApps(packageManager),
+            testApplication.packageName,
+        ).loadApps().single { app -> app.componentName.packageName == packageName }
+
+        assertEquals("TV Alpha", app.label)
+        assertEquals(true, app.isTelevisionEntry)
+        assertEquals(64, app.icon.width)
+        assertEquals(32, app.icon.height)
+        assertEquals(Color.YELLOW, app.icon.getPixel(0, 0))
+        assertEquals(192, app.banner?.width)
+        assertEquals(108, app.banner?.height)
+        assertEquals(Color.RED, app.banner?.getPixel(0, 0))
     }
 
     @Test
@@ -822,6 +883,66 @@ class LauncherUiTest {
     }
 
     @Test
+    @Config(qualifiers = "w1280dp-h720dp")
+    fun appWithBannerFillsARoundedSixteenByNineTile() {
+        val banner = Bitmap.createBitmap(32, 18, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.RED)
+        }
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha").copy(banner = banner))
+
+        launchLauncher()
+
+        val size = composeRule.onNodeWithContentDescription("Alpha")
+            .fetchSemanticsNode().size
+        assertEquals(16f / 9f, size.width.toFloat() / size.height, 0.01f)
+        assertEquals(Color.RED, tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.5f))
+        assertEquals(Color.WHITE, tilePixel("Alpha", xFraction = 0.5f, yFraction = 0f))
+
+        composeRule.onNodeWithContentDescription("Settings").requestFocus()
+
+        assertEquals(Color.RED, tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.02f))
+        assertEquals(0xFF171717.toInt(), tilePixel("Alpha", xFraction = 0.01f, yFraction = 0.01f))
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h720dp")
+    fun nonNativeBannerKeepsItsAspectRatioWithoutCropping() {
+        val banner = Bitmap.createBitmap(40, 20, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.RED)
+            for (x in 20 until 40) {
+                for (y in 0 until 20) {
+                    setPixel(x, y, Color.BLUE)
+                }
+            }
+        }
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha").copy(banner = banner))
+
+        launchLauncher()
+        composeRule.onNodeWithContentDescription("Settings").requestFocus()
+
+        assertEquals(Color.RED, tilePixel("Alpha", xFraction = 0.25f, yFraction = 0.5f))
+        assertEquals(Color.BLUE, tilePixel("Alpha", xFraction = 0.75f, yFraction = 0.5f))
+        assertEquals(0xFF171717.toInt(), tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.02f))
+        assertEquals(0xFF171717.toInt(), tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.98f))
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h720dp")
+    fun appWithoutBannerCentersItsOriginalIconOnTransparentSpace() {
+        val icon = Bitmap.createBitmap(8, 4, Bitmap.Config.ARGB_8888).apply {
+            eraseColor(Color.GREEN)
+        }
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha").copy(icon = icon))
+
+        launchLauncher()
+        composeRule.onNodeWithContentDescription("Settings").requestFocus()
+
+        assertEquals(Color.GREEN, tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.5f))
+        assertEquals(0xFF171717.toInt(), tilePixel("Alpha", xFraction = 0.05f, yFraction = 0.5f))
+        assertEquals(0xFF171717.toInt(), tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.02f))
+    }
+
+    @Test
     fun tilesExposeAccessibleAppNamesWithoutVisibleText() {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
         launchLauncher()
@@ -914,6 +1035,19 @@ class LauncherUiTest {
         view.draw(android.graphics.Canvas(bitmap))
         bitmap.getPixel(x, y)
     }
+
+    private fun tilePixel(label: String, xFraction: Float, yFraction: Float): Int =
+        composeRule.runOnUiThread {
+            val bounds = composeRule.onNodeWithContentDescription(label)
+                .fetchSemanticsNode().boundsInRoot
+            val view = composeRule.activity.window.decorView
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            view.draw(android.graphics.Canvas(bitmap))
+            bitmap.getPixel(
+                (bounds.left + bounds.width * xFraction).toInt(),
+                (bounds.top + bounds.height * yFraction).toInt(),
+            )
+        }
 
     private fun visibleAppNames(): List<String> = composeRule
         .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription))

@@ -16,7 +16,7 @@ _Avoid_: application
 An installed App whose Tile is intentionally omitted from the main screen. It remains available in settings to be shown again.
 
 **Tile**:
-The visual representation of an App in the Launcher, displaying only its icon.
+The visual representation of an App in the Launcher, displaying its Android TV banner when available and its original icon otherwise.
 _Avoid_: vignette
 
 **Wallpaper**:

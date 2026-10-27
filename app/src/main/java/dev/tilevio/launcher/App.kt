@@ -9,6 +9,7 @@ data class App(
     val label: String,
     val icon: Bitmap,
     val isTelevisionEntry: Boolean,
+    val banner: Bitmap? = null,
 ) {
     val key: String
         get() = componentName.flattenToString()
