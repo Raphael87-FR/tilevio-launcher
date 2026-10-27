@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsMatcher
@@ -28,7 +29,10 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
+import java.time.Duration
+import java.util.Calendar
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -38,6 +42,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = TestTilevioApplication::class, sdk = [35])
@@ -52,6 +57,57 @@ class LauncherUiTest {
     fun setUp() {
         testApplication = ApplicationProvider.getApplicationContext()
         testApplication.reset()
+    }
+
+    @Test
+    @Config(qualifiers = "en")
+    fun clockUsesSystemTimeFormat() {
+        launchLauncherAt(hour = 13, minute = 37, second = 42)
+
+        composeRule.onNodeWithText("13:37").assertIsDisplayed()
+
+        Settings.System.putInt(testApplication.contentResolver, Settings.System.TIME_12_24, 12)
+        launchLauncher()
+
+        composeRule.onNodeWithText("1:37 PM").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "en", sdk = [29])
+    fun clockUsesSystemTimeFallbackBeforeNetworkClockApi() {
+        launchLauncher()
+
+        composeRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "en")
+    fun clockRefreshesAtMinuteChangesOnlyOnHome() {
+        launchLauncherAt(hour = 13, minute = 37, second = 50)
+        composeRule.onNodeWithText("13:37").assertIsDisplayed()
+
+        advanceTimeBy(5_000)
+
+        composeRule.onNodeWithText("13:37").assertIsDisplayed()
+        composeRule.onNodeWithText("13:38").assertDoesNotExist()
+
+        advanceTimeBy(5_000)
+
+        composeRule.onNodeWithText("13:38").assertIsDisplayed()
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        advanceTimeBy(60_000)
+
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("13:39").assertIsDisplayed()
+        openSettings()
+        composeRule.onNodeWithText("13:39").assertDoesNotExist()
+
+        advanceTimeBy(60_000)
+        closeSettings()
+
+        composeRule.onNodeWithText("13:40").assertIsDisplayed()
     }
 
     @Test
@@ -467,6 +523,33 @@ class LauncherUiTest {
         assertEquals(false, activity.isDestroyed)
         composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
         composeRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "en")
+    fun clockPrecedesSettingsWithoutJoiningRemoteNavigation() {
+        launchLauncherAt(hour = 13, minute = 37, second = 42)
+        val clockBounds = composeRule.onNodeWithText("13:37").fetchSemanticsNode().boundsInRoot
+        val settings = composeRule.onNodeWithContentDescription("Settings")
+        val settingsBounds = settings.fetchSemanticsNode().boundsInRoot
+
+        assertEquals(true, clockBounds.left < settingsBounds.left)
+        composeRule.onNodeWithText("App").assertDoesNotExist()
+        settings.assertIsFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionLeft) }
+        settings.assertIsFocused()
+    }
+
+    @Test
+    fun settingsGearHasTransparentRestingContainerAndVisibleFocus() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+        launchLauncher()
+
+        assertEquals(0xFF171717.toInt(), tilePixel("Settings", xFraction = 0.5f, yFraction = 0.02f))
+
+        composeRule.onNodeWithContentDescription("Settings").requestFocus().assertIsFocused()
+
+        assertEquals(Color.WHITE, tilePixel("Settings", xFraction = 0.5f, yFraction = 0.02f))
     }
 
     @Test
@@ -1076,6 +1159,31 @@ class LauncherUiTest {
             composeRule.activity.onBackPressedDispatcher.onBackPressed()
         }
         composeRule.waitForIdle()
+    }
+
+    private fun advanceTimeBy(milliseconds: Long) {
+        ShadowSystemClock.advanceBy(Duration.ofMillis(milliseconds))
+        composeRule.mainClock.advanceTimeBy(milliseconds)
+        composeRule.waitForIdle()
+    }
+
+    private fun setSystemTime(hour: Int, minute: Int, second: Int) {
+        val currentTime = SystemClock.currentNetworkTimeClock().millis()
+        val calendar = Calendar.getInstance().apply {
+            timeInMillis = currentTime
+            add(Calendar.DATE, 1)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, second)
+            set(Calendar.MILLISECOND, 0)
+        }
+        ShadowSystemClock.advanceBy(Duration.ofMillis(calendar.timeInMillis - currentTime))
+    }
+
+    private fun launchLauncherAt(hour: Int, minute: Int, second: Int) {
+        setSystemTime(hour, minute, second)
+        Settings.System.putInt(testApplication.contentResolver, Settings.System.TIME_12_24, 24)
+        launchLauncher()
     }
 
     private fun launchLauncher() {

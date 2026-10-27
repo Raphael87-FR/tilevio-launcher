@@ -1,5 +1,8 @@
 package dev.tilevio.launcher
 
+import android.os.Build
+import android.os.SystemClock
+import android.text.format.DateFormat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -7,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,11 +38,18 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import java.time.DateTimeException
+import java.util.Date
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -170,12 +181,14 @@ fun LauncherScreen(
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(24.dp),
-                    contentAlignment = Alignment.CenterEnd,
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    HomeClock(modifier = Modifier.padding(end = 16.dp))
                     SettingsAction(
                         onClick = { onSettingsVisibilityChange(true) },
                         focusRequester = settingsFocusRequester,
@@ -249,6 +262,54 @@ fun LauncherScreen(
                 style = TextStyle(color = Color.White, fontSize = 18.sp),
             )
         }
+    }
+}
+
+@Composable
+private fun HomeClock(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var currentTime by remember { mutableStateOf(currentWallTimeMillis()) }
+    var isVisible by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, _ ->
+            isVisible = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(lifecycleOwner, isVisible) {
+        if (isVisible) {
+            while (true) {
+                currentTime = currentWallTimeMillis()
+                delay(60_000 - currentTime % 60_000)
+            }
+        }
+    }
+
+    BasicText(
+        text = DateFormat.getTimeFormat(context).format(Date(currentTime)),
+        modifier = modifier,
+        style = TextStyle(
+            color = Color.White,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
+            fontFeatureSettings = "tnum",
+        ),
+    )
+}
+
+private fun currentWallTimeMillis(): Long {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        return System.currentTimeMillis()
+    }
+    return try {
+        SystemClock.currentNetworkTimeClock().millis()
+    } catch (_: DateTimeException) {
+        System.currentTimeMillis()
     }
 }
 

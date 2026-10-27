@@ -255,6 +255,7 @@ fun SettingsAction(
     Action(
         onClick = onClick,
         focusRequester = focusRequester,
+        hasContainer = false,
         modifier = modifier.size(48.dp),
     ) { actionModifier ->
         Image(
@@ -289,19 +290,30 @@ fun TextAction(
 private fun Action(
     onClick: () -> Unit,
     focusRequester: FocusRequester,
+    hasContainer: Boolean = true,
     modifier: Modifier = Modifier,
     content: @Composable (Modifier) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(8.dp)
+    val borderModifier = if (hasContainer || focused) {
+        Modifier.border(
+            width = if (focused) 3.dp else 1.dp,
+            color = if (focused) Color.White else Color(0xFF666666),
+            shape = shape,
+        )
+    } else {
+        Modifier
+    }
+    val backgroundModifier = if (hasContainer) {
+        Modifier.background(Color(0xFF292929), shape)
+    } else {
+        Modifier
+    }
     content(
         modifier
-            .border(
-                width = if (focused) 3.dp else 1.dp,
-                color = if (focused) Color.White else Color(0xFF666666),
-                shape = shape,
-            )
-            .background(Color(0xFF292929), shape)
+            .then(borderModifier)
+            .then(backgroundModifier)
             .focusRequester(focusRequester)
             .onFocusChanged { state -> focused = state.isFocused }
             .onRemoteActivation(onClick)
