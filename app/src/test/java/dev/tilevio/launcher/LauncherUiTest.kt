@@ -943,6 +943,107 @@ class LauncherUiTest {
     }
 
     @Test
+    @Config(qualifiers = "w1280dp-h720dp")
+    fun nineAppsUseACenteredFiveColumnGridWithRegularGeometry() {
+        testApplication.launchableApps.apps = (1..9).map { index ->
+            app("App $index", "app$index")
+        }
+        launchLauncher()
+
+        val tiles = composeRule.onAllNodes(
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription),
+        ).fetchSemanticsNodes()
+            .filterNot { node ->
+                node.config[SemanticsProperties.ContentDescription].single() == "Settings"
+            }
+            .associate { node ->
+                node.config[SemanticsProperties.ContentDescription].single() to node.boundsInRoot
+            }
+        val rows = tiles.values.groupBy { bounds -> bounds.top.toInt() }.values
+            .sortedBy { row -> row.first().top }
+        assertEquals(listOf(5, 4), rows.map { row -> row.size })
+        val firstRow = rows[0].sortedBy { bounds -> bounds.left }
+        val secondRow = rows[1].sortedBy { bounds -> bounds.left }
+        val density = composeRule.activity.resources.displayMetrics.density
+        val gutter = 24 * density
+        val margin = 32 * density
+        val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
+        val expectedTileWidth = (rootBounds.width - 2 * margin - 4 * gutter) / 5
+
+        tiles.forEach { (label, bounds) ->
+            assertEquals("$label width", expectedTileWidth, bounds.width, 1f)
+            assertEquals("$label ratio", 16f / 9f, bounds.width / bounds.height, 0.01f)
+        }
+        firstRow.zipWithNext().forEach { (left, right) ->
+            assertEquals("Horizontal gutter", gutter, right.left - left.right, 1f)
+        }
+        assertEquals("Vertical gutter", gutter, secondRow.first().top - firstRow.first().bottom, 1f)
+        secondRow.indices.forEach { index ->
+            assertEquals("Incomplete-row alignment", firstRow[index].left, secondRow[index].left, 1f)
+        }
+        assertEquals("Left margin", margin, firstRow.first().left, 1f)
+        assertEquals("Right margin", margin, rootBounds.right - firstRow.last().right, 1f)
+
+        val settingsBounds = composeRule.onNodeWithContentDescription("Settings")
+            .fetchSemanticsNode().boundsInRoot
+        val bodyTop = settingsBounds.bottom + 24 * density
+        val topSpace = firstRow.first().top - bodyTop
+        val bottomSpace = rootBounds.bottom - secondRow.first().bottom
+        assertEquals("Vertical centering", topSpace, bottomSpace, 1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h720dp")
+    fun additionalRowsScrollWithoutChangingTileDimensions() {
+        testApplication.launchableApps.apps = (1..25).map { index ->
+            app("App ${index.toString().padStart(2, '0')}", "app$index")
+        }
+        launchLauncher()
+        val initialBounds = composeRule.onNodeWithContentDescription("App 01")
+            .fetchSemanticsNode().boundsInRoot
+        composeRule.onNodeWithContentDescription("App 21").assertDoesNotExist()
+
+        repeat(4) {
+            composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        }
+
+        composeRule.onNodeWithContentDescription("App 21").assertIsDisplayed().assertIsFocused()
+        val scrolledBounds = composeRule.onNodeWithContentDescription("App 21")
+            .fetchSemanticsNode().boundsInRoot
+        assertEquals(initialBounds.width, scrolledBounds.width, 1f)
+        assertEquals(initialBounds.height, scrolledBounds.height, 1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w1280dp-h720dp")
+    fun remoteNavigationUsesAndActivatesTheIncompleteFinalRow() {
+        testApplication.launchableApps.apps = (1..9).map { index ->
+            app("App $index", "app$index")
+        }
+        launchLauncher()
+        repeat(3) {
+            composeRule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        }
+        composeRule.onNodeWithContentDescription("App 4").assertIsFocused()
+
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.onNodeWithContentDescription("App 9").assertIsFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionLeft) }
+        composeRule.onNodeWithContentDescription("App 8").assertIsFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+        composeRule.onNodeWithContentDescription("App 9").assertIsFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
+        composeRule.onNodeWithContentDescription("App 4").assertIsFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+
+        assertEquals(
+            ComponentName("example.app9", "example.app9.TvActivity"),
+            testApplication.appLauncher.launchedApps.single().componentName,
+        )
+    }
+
+    @Test
     fun tilesExposeAccessibleAppNamesWithoutVisibleText() {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
         launchLauncher()

@@ -186,17 +186,28 @@ fun LauncherScreen(
                         },
                     )
                 }
-                Box(modifier = Modifier.weight(1f)) {
+                BoxWithConstraints(modifier = Modifier.weight(1f)) {
                     if (apps.isEmpty()) {
                         EmptyCatalog(R.string.empty_catalog)
                     } else if (visibleApps.isEmpty()) {
                         EmptyCatalog(R.string.all_apps_hidden)
                     } else {
+                        val columnCount = 5
+                        val rowCount = (visibleApps.size + columnCount - 1) / columnCount
+                        val tileWidth = (maxWidth - 64.dp - 96.dp) / columnCount
+                        val tileHeight = tileWidth * 9f / 16f
+                        val gridHeight = tileHeight * rowCount + 24.dp * (rowCount - 1)
+                        val verticalPadding = ((maxHeight - gridHeight) / 2).coerceAtLeast(32.dp)
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 112.dp),
+                            columns = GridCells.Fixed(columnCount),
                             modifier = Modifier.fillMaxSize(),
                             state = gridState,
-                            contentPadding = PaddingValues(32.dp),
+                            contentPadding = PaddingValues(
+                                start = 32.dp,
+                                top = verticalPadding,
+                                end = 32.dp,
+                                bottom = verticalPadding,
+                            ),
                             horizontalArrangement = Arrangement.spacedBy(24.dp),
                             verticalArrangement = Arrangement.spacedBy(24.dp),
                         ) {
