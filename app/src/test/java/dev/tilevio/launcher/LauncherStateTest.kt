@@ -2,25 +2,33 @@ package dev.tilevio.launcher
 
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
+import android.content.Context
 import android.graphics.Bitmap
-import android.net.Uri
+import android.graphics.Color
 import android.os.Looper
-import java.io.IOException
+import androidx.test.core.app.ApplicationProvider
 import java.time.Duration
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class LauncherStateTest {
     private val launchableApps = FakeLaunchableApps()
     private val appLauncher = FakeAppLauncher()
@@ -28,12 +36,16 @@ class LauncherStateTest {
     private val packageChangeEvents = FakePackageChangeEvents()
     private val homeRole = FakeHomeRoleAdapter()
     private val homeRolePromptStore = FakeHomeRolePromptStore()
-    private val wallpaperStore = FakeWallpaperStore()
+    private val context: Context = ApplicationProvider.getApplicationContext()
+    private val wallpaperStore = SharedPreferencesWallpaperStore(context)
     private val scope = CoroutineScope(Job() + Dispatchers.Main.immediate)
+
+    private val backgroundDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
 
     @After
     fun tearDown() {
         scope.cancel()
+        backgroundDispatcher.close()
     }
 
     @Test
@@ -170,11 +182,28 @@ class LauncherStateTest {
 
     @Test
     fun wallpaperIsReadFromTheWallpaperStore() {
-        wallpaperStore.wallpaper = Wallpaper.Graphite
+        SharedPreferencesWallpaperStore(context).select(Wallpaper.Graphite)
 
         val state = launcherState()
 
         assertEquals(WallpaperSelection.Solid(Wallpaper.Graphite), state.wallpaper)
+    }
+
+    @Test
+    fun wallpaperIsReadOffTheMainThread() {
+        val readThreads = CopyOnWriteArrayList<Thread>()
+        val state = launcherState(
+            wallpaperStore = object : WallpaperStore by wallpaperStore {
+                override val selection: WallpaperSelection
+                    get() = wallpaperStore.selection.also { readThreads += Thread.currentThread() }
+            },
+            ioDispatcher = backgroundDispatcher,
+        )
+
+        waitUntil { state.wallpaper != null }
+
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Charcoal), state.wallpaper)
+        assertNotEquals(Looper.getMainLooper().thread, readThreads.single())
     }
 
     @Test
@@ -184,31 +213,31 @@ class LauncherStateTest {
         state.selectWallpaper(Wallpaper.Slate)
 
         assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), state.wallpaper)
-        assertEquals(Wallpaper.Slate, wallpaperStore.wallpaper)
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), SharedPreferencesWallpaperStore(context).selection)
     }
 
     @Test
-    fun importingAnImageAppliesItAtTheRequestedSize() {
-        val image = Bitmap.createBitmap(4, 4, Bitmap.Config.ARGB_8888)
-        wallpaperStore.imageToImport = image
+    fun importingAnImageAppliesItBoundedToTheRequestedSize() {
+        val image = solidImage(3840, 2160, Color.RED)
+        val document = registerTestImage(context, "content://example/wallpaper", image)
         val state = launcherState()
 
-        state.importWallpaperImage(Uri.parse("content://example/wallpaper"), width = 1920, height = 1080)
+        state.importWallpaperImage(document.uri, width = 1920, height = 1080)
 
-        assertEquals(WallpaperSelection.Image(image), state.wallpaper)
-        assertEquals(Uri.parse("content://example/wallpaper"), wallpaperStore.importedUri)
-        assertEquals(1920, wallpaperStore.importWidth)
-        assertEquals(1080, wallpaperStore.importHeight)
+        val wallpaper = state.wallpaper as WallpaperSelection.Image
+        assertEquals(1920, wallpaper.bitmap.width)
+        assertEquals(1080, wallpaper.bitmap.height)
+        assertEquals(Color.RED, wallpaper.bitmap.getPixel(960, 540))
         assertEquals(null, state.message)
     }
 
     @Test
     fun failedImageImportShowsAMessageAndKeepsThePreviousWallpaper() {
-        wallpaperStore.wallpaper = Wallpaper.Slate
-        wallpaperStore.importFailure = IOException("Copy failed")
+        wallpaperStore.select(Wallpaper.Slate)
+        val document = registerInvalidImage(context, "content://example/invalid")
         val state = launcherState()
 
-        state.importWallpaperImage(Uri.parse("content://example/invalid"), width = 1920, height = 1080)
+        state.importWallpaperImage(document.uri, width = 1920, height = 1080)
 
         assertEquals(LauncherMessage.WallpaperImportFailure, state.message)
         assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), state.wallpaper)
@@ -268,7 +297,19 @@ class LauncherStateTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(milliseconds))
     }
 
-    private fun launcherState() = LauncherState(
+    private fun waitUntil(condition: () -> Boolean) {
+        val deadline = System.nanoTime() + 5_000_000_000
+        while (!condition()) {
+            check(System.nanoTime() < deadline) { "Condition not met" }
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10)
+        }
+    }
+
+    private fun launcherState(
+        wallpaperStore: WallpaperStore = this.wallpaperStore,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
+    ) = LauncherState(
         dependencies = LauncherDependencies(
             catalog = InstalledAppCatalog(launchableApps, OWN_PACKAGE_NAME),
             appLauncher = appLauncher,
@@ -279,7 +320,7 @@ class LauncherStateTest {
             wallpaperStore = wallpaperStore,
         ),
         scope = scope,
-        ioDispatcher = Dispatchers.Unconfined,
+        ioDispatcher = ioDispatcher,
     ).also { state -> state.watchCatalog() }
 
     private fun app(

@@ -121,6 +121,7 @@ fun LauncherScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
             )
+            null -> Unit
         }
         if (isSettingsVisible) {
             SettingsScreen(

@@ -28,13 +28,17 @@ class LauncherState(
     val hiddenApps: List<App> by derivedStateOf {
         apps.filter { app -> app.componentName.packageName in hiddenPackageNames }
     }
-    var wallpaper: WallpaperSelection by mutableStateOf(dependencies.wallpaperStore.selection)
+    /** Null until the Wallpaper store has been read. */
+    var wallpaper: WallpaperSelection? by mutableStateOf(null)
         private set
     var isDefaultHome by mutableStateOf(dependencies.homeRole.isHeld)
         private set
     var message: LauncherMessage? by mutableStateOf(null)
         private set
     private var loadJob: Job? = null
+    private val wallpaperLoadJob = scope.launch {
+        wallpaper = withContext(ioDispatcher) { dependencies.wallpaperStore.selection }
+    }
     private var importJob: Job? = null
     private var messageJob: Job? = null
 
@@ -65,8 +69,9 @@ class LauncherState(
     }
 
     fun selectWallpaper(wallpaper: Wallpaper) {
+        wallpaperLoadJob.cancel()
+        dependencies.wallpaperStore.select(wallpaper)
         this.wallpaper = WallpaperSelection.Solid(wallpaper)
-        dependencies.wallpaperStore.wallpaper = wallpaper
     }
 
     fun chooseWallpaperImage(openPicker: () -> Unit) {
@@ -81,9 +86,11 @@ class LauncherState(
         importJob?.cancel()
         importJob = scope.launch {
             try {
-                wallpaper = withContext(ioDispatcher) {
+                val image = withContext(ioDispatcher) {
                     dependencies.wallpaperStore.importImage(uri = uri, width = width, height = height)
                 }
+                wallpaperLoadJob.cancel()
+                wallpaper = image
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
