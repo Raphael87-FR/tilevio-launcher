@@ -7,7 +7,7 @@ import android.provider.Settings
 
 class AndroidDefaultHomeAdapter(context: Context) : DefaultHomeAdapter {
     private val roleManager = context.getSystemService(RoleManager::class.java)
-    private val preferences = context.getSharedPreferences("home_role", Context.MODE_PRIVATE)
+    private val preferences = context.getSharedPreferences("default_home", Context.MODE_PRIVATE)
 
     override val isAvailable: Boolean
         get() = roleManager.isRoleAvailable(RoleManager.ROLE_HOME)

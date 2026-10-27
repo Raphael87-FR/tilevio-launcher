@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.SystemClock
+import android.os.Looper
 import android.provider.Settings
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsMatcher
@@ -414,6 +415,28 @@ class LauncherUiTest {
         composeRule.activity.recreate()
         composeRule.waitForIdle()
         assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
+    }
+
+    @Test
+    fun settingsDoesNotShowActivationForAFrameAfterTheRequestIsAccepted() {
+        testApplication.defaultHomeAdapter.isHeld = false
+        testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
+        launchLauncher()
+        openSettings()
+        activateDefaultHome()
+        val request = testApplication.defaultHomeAdapter.requestIntents.single()
+        composeRule.mainClock.autoAdvance = false
+        testApplication.defaultHomeAdapter.isHeld = true
+
+        shadowOf(composeRule.activity).receiveResult(
+            request,
+            android.app.Activity.RESULT_OK,
+            null,
+        )
+        shadowOf(Looper.getMainLooper()).idle()
+        composeRule.mainClock.advanceTimeByFrame()
+
+        composeRule.onNodeWithText("Set Tilevio as default home").assertDoesNotExist()
     }
 
     @Test
