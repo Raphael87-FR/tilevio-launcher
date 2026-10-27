@@ -47,18 +47,14 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun SettingsScreen(
-    apps: List<App>,
-    hiddenPackageNames: Set<String>,
-    isHomeRoleHeld: Boolean,
-    selectedWallpaper: WallpaperSelection,
-    onAppVisibilityChange: (String, Boolean) -> Unit,
-    onWallpaperSelected: (Wallpaper) -> Unit,
-    onChooseImage: () -> Unit,
+    state: LauncherState,
+    onPickWallpaperImage: () -> Unit,
     onActivateHomeRole: () -> Unit,
 ) {
+    val isDefaultHome = state.isDefaultHome
     val activationFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(isHomeRoleHeld) {
-        if (!isHomeRoleHeld) {
+    LaunchedEffect(isDefaultHome) {
+        if (!isDefaultHome) {
             withFrameNanos { }
             activationFocusRequester.requestFocus()
         }
@@ -91,22 +87,22 @@ fun SettingsScreen(
                     maxItemsInEachRow = 2,
                 ) {
                     Wallpaper.entries.forEach { wallpaper ->
-                        val isSelected = selectedWallpaper == WallpaperSelection.Solid(wallpaper)
+                        val isSelected = state.wallpaper == WallpaperSelection.Solid(wallpaper)
                         WallpaperOption(
                             label = stringResource(wallpaper.labelRes),
                             color = wallpaper.color,
                             isSelected = isSelected,
-                            requestInitialFocus = isHomeRoleHeld && isSelected,
-                            onClick = { onWallpaperSelected(wallpaper) },
+                            requestInitialFocus = isDefaultHome && isSelected,
+                            onClick = { state.selectWallpaper(wallpaper) },
                         )
                     }
-                    val isImageSelected = selectedWallpaper is WallpaperSelection.Image
+                    val isImageSelected = state.wallpaper is WallpaperSelection.Image
                     WallpaperOption(
                         label = stringResource(R.string.choose_wallpaper_image),
                         color = Color(0xFF292929),
                         isSelected = isImageSelected,
-                        requestInitialFocus = isHomeRoleHeld && isImageSelected,
-                        onClick = onChooseImage,
+                        requestInitialFocus = isDefaultHome && isImageSelected,
+                        onClick = { state.chooseWallpaperImage(onPickWallpaperImage) },
                     )
                 }
             }
@@ -117,18 +113,16 @@ fun SettingsScreen(
                     style = TextStyle(color = Color.White, fontSize = 20.sp),
                 )
             }
-            items(apps, key = { app -> app.key }) { app ->
-                val packageName = app.componentName.packageName
+            items(state.apps, key = { app -> app.key }) { app ->
+                val isHidden = app in state.hiddenApps
                 AppVisibilityOption(
                     app = app,
-                    isHidden = packageName in hiddenPackageNames,
-                    onClick = {
-                        onAppVisibilityChange(packageName, packageName !in hiddenPackageNames)
-                    },
+                    isHidden = isHidden,
+                    onClick = { state.setHidden(app, hidden = !isHidden) },
                 )
             }
         }
-        if (isHomeRoleHeld) {
+        if (isDefaultHome) {
             BasicText(
                 text = stringResource(R.string.default_home_active),
                 modifier = Modifier

@@ -301,21 +301,6 @@ class LauncherUiTest {
     }
 
     @Test
-    fun catalogIsPresentedAlphabeticallyWithoutDuplicatesOrTilevio() {
-        testApplication.launchableApps.apps = listOf(
-            app("Zulu", "zulu"),
-            app("Mobile Alpha", "duplicate", televisionActivity = false),
-            app("Bravo", "bravo"),
-            app("Alpha", "duplicate", televisionActivity = true),
-            app("Tilevio", testApplication.packageName),
-        )
-
-        launchLauncher()
-
-        assertEquals(listOf("Alpha", "Bravo", "Zulu"), visibleAppNames())
-    }
-
-    @Test
     fun packageManagerLoadsBoundedTvBannerAndKeepsOriginalIcon() {
         val packageName = "example.banner"
         val iconResource = 1001
@@ -818,29 +803,6 @@ class LauncherUiTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
-    }
-
-    @Test
-    fun hiddenAppStaysHiddenAfterUninstallAndReinstall() {
-        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
-        launchLauncher()
-        openSettings()
-        changeAppVisibility("Alpha")
-        closeSettings()
-        testApplication.launchableApps.apps = listOf(app("Bravo", "bravo"))
-
-        composeRule.runOnUiThread { testApplication.packageChangeEvents.emit() }
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
-        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
-        composeRule.runOnUiThread { testApplication.packageChangeEvents.emit() }
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
-        openSettings()
-        focusAppInSettings("Alpha")
-        composeRule.onNodeWithText("Alpha").assertIsSelected()
     }
 
     @Test

@@ -27,8 +27,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -50,9 +50,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import java.time.DateTimeException
 import java.util.Date
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 
 @Composable
 fun LauncherScreen(
@@ -65,40 +63,26 @@ fun LauncherScreen(
     wallpaperImageResult: WallpaperImageResult?,
     onWallpaperImageResultHandled: () -> Unit,
 ) {
-    var refreshVersion by remember { mutableIntStateOf(0) }
-    var wallpaper by remember(dependencies.wallpaperStore) {
-        mutableStateOf(dependencies.wallpaperStore.selection)
-    }
+    val scope = rememberCoroutineScope()
+    val state = remember(dependencies, scope) { LauncherState(dependencies, scope) }
 
-    LaunchedEffect(Unit) {
-        if (!dependencies.homeRole.isHeld && !dependencies.homeRolePromptStore.hasHandledInitialRequest) {
-            dependencies.homeRolePromptStore.hasHandledInitialRequest = true
+    LaunchedEffect(state) {
+        if (state.takeInitialDefaultHomeRequest()) {
             onActivateHomeRole()
         }
     }
-    val apps by produceState(initialValue = emptyList(), dependencies.catalog, refreshVersion) {
-        value = withContext(Dispatchers.IO) { dependencies.catalog.loadApps() }
+    DisposableEffect(state) {
+        onDispose(state.watchCatalog())
     }
-    var hiddenPackageNames by remember(dependencies.appVisibilityStore) {
-        mutableStateOf(dependencies.appVisibilityStore.hiddenPackageNames)
+    LaunchedEffect(state, homeRoleVersion) {
+        state.refreshDefaultHome()
     }
-    val visibleApps = apps.filterNot { app ->
-        app.componentName.packageName in hiddenPackageNames
-    }
-    DisposableEffect(dependencies.packageChangeEvents) {
-        val unregister = dependencies.packageChangeEvents.register { refreshVersion++ }
-        onDispose(unregister)
-    }
-    val isHomeRoleHeld = remember(dependencies.homeRole, homeRoleVersion) {
-        dependencies.homeRole.isHeld
-    }
+    val visibleApps = state.visibleApps
     val gridState = rememberLazyGridState()
     val focusRequesters = remember { mutableStateMapOf<String, FocusRequester>() }
     val settingsFocusRequester = remember { FocusRequester() }
     var focusedAppKey by remember { mutableStateOf<String?>(null) }
     var focusedIndex by remember { mutableIntStateOf(0) }
-    var message by remember { mutableStateOf<String?>(null) }
-    val wallpaperImportFailureMessage = stringResource(R.string.wallpaper_import_failure)
 
     LaunchedEffect(visibleApps, isSettingsVisible) {
         if (!isSettingsVisible) {
@@ -117,33 +101,15 @@ fun LauncherScreen(
         }
     }
 
-    LaunchedEffect(message) {
-        if (message != null) {
-            delay(4_000)
-            message = null
-        }
-    }
-
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         LaunchedEffect(wallpaperImageResult) {
             val result = wallpaperImageResult ?: return@LaunchedEffect
-            val uri = result.uri
-            if (uri != null) {
-                try {
-                    wallpaper = withContext(Dispatchers.IO) {
-                        dependencies.wallpaperStore.importImage(
-                            uri = uri,
-                            width = constraints.maxWidth,
-                            height = constraints.maxHeight,
-                        )
-                    }
-                } catch (exception: Exception) {
-                    message = wallpaperImportFailureMessage
-                }
+            result.uri?.let { uri ->
+                state.importWallpaperImage(uri = uri, width = constraints.maxWidth, height = constraints.maxHeight)
             }
             onWallpaperImageResultHandled()
         }
-        when (val currentWallpaper = wallpaper) {
+        when (val currentWallpaper = state.wallpaper) {
             is WallpaperSelection.Solid -> Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -158,25 +124,8 @@ fun LauncherScreen(
         }
         if (isSettingsVisible) {
             SettingsScreen(
-                apps = apps,
-                hiddenPackageNames = hiddenPackageNames,
-                isHomeRoleHeld = isHomeRoleHeld,
-                selectedWallpaper = wallpaper,
-                onAppVisibilityChange = { packageName, hidden ->
-                    dependencies.appVisibilityStore.setHidden(packageName, hidden)
-                    hiddenPackageNames = dependencies.appVisibilityStore.hiddenPackageNames
-                },
-                onWallpaperSelected = { selected ->
-                    wallpaper = WallpaperSelection.Solid(selected)
-                    dependencies.wallpaperStore.wallpaper = selected
-                },
-                onChooseImage = {
-                    try {
-                        onPickWallpaperImage()
-                    } catch (exception: Exception) {
-                        message = wallpaperImportFailureMessage
-                    }
-                },
+                state = state,
+                onPickWallpaperImage = onPickWallpaperImage,
                 onActivateHomeRole = onActivateHomeRole,
             )
         } else {
@@ -200,7 +149,7 @@ fun LauncherScreen(
                     )
                 }
                 BoxWithConstraints(modifier = Modifier.weight(1f)) {
-                    if (apps.isEmpty()) {
+                    if (state.apps.isEmpty()) {
                         EmptyCatalog(R.string.empty_catalog)
                     } else if (visibleApps.isEmpty()) {
                         EmptyCatalog(R.string.all_apps_hidden)
@@ -228,7 +177,6 @@ fun LauncherScreen(
                                 items = visibleApps,
                                 key = { _, app -> app.key },
                             ) { index, app ->
-                                val launchFailureMessage = stringResource(R.string.launch_failure, app.label)
                                 AppTile(
                                     app = app,
                                     focusRequester = focusRequesters.getOrPut(app.key) { FocusRequester() },
@@ -237,12 +185,7 @@ fun LauncherScreen(
                                         focusedAppKey = app.key
                                         focusedIndex = index
                                     },
-                                    onOpen = {
-                                        if (!dependencies.appLauncher.launch(app)) {
-                                            message = launchFailureMessage
-                                            refreshVersion++
-                                        }
-                                    },
+                                    onOpen = { state.launch(app) },
                                 )
                             }
                         }
@@ -251,9 +194,12 @@ fun LauncherScreen(
             }
         }
 
-        message?.let { text ->
+        state.message?.let { message ->
             BasicText(
-                text = text,
+                text = when (message) {
+                    is LauncherMessage.LaunchFailure -> stringResource(R.string.launch_failure, message.appLabel)
+                    LauncherMessage.WallpaperImportFailure -> stringResource(R.string.wallpaper_import_failure)
+                },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(32.dp)
