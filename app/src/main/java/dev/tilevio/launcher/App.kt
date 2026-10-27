@@ -52,7 +52,6 @@ data class LauncherDependencies(
     val appLauncher: AppLauncher,
     val appVisibilityStore: AppVisibilityStore,
     val packageChangeEvents: PackageChangeEvents,
-    val homeRole: HomeRoleAdapter,
-    val homeRolePromptStore: HomeRolePromptStore,
+    val defaultHome: DefaultHome,
     val wallpaperStore: WallpaperStore,
 )

@@ -34,8 +34,6 @@ class LauncherStateTest {
     private val appLauncher = FakeAppLauncher()
     private val appVisibilityStore = FakeAppVisibilityStore()
     private val packageChangeEvents = FakePackageChangeEvents()
-    private val homeRole = FakeHomeRoleAdapter()
-    private val homeRolePromptStore = FakeHomeRolePromptStore()
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val wallpaperStore = SharedPreferencesWallpaperStore(context)
     private val scope = CoroutineScope(Job() + Dispatchers.Main.immediate)
@@ -263,36 +261,6 @@ class LauncherStateTest {
         assertEquals(null, state.message)
     }
 
-    @Test
-    fun firstLaunchRequestsTheDefaultHomeOnlyOnce() {
-        homeRole.isHeld = false
-
-        assertEquals(true, launcherState().takeInitialDefaultHomeRequest())
-        assertEquals(false, launcherState().takeInitialDefaultHomeRequest())
-    }
-
-    @Test
-    fun firstLaunchDoesNotRequestTheDefaultHomeWhenAlreadyHeld() {
-        homeRole.isHeld = true
-
-        assertEquals(false, launcherState().takeInitialDefaultHomeRequest())
-        homeRole.isHeld = false
-        assertEquals(true, launcherState().takeInitialDefaultHomeRequest())
-    }
-
-    @Test
-    fun defaultHomeStateIsReadAgainOnRefresh() {
-        homeRole.isHeld = false
-        val state = launcherState()
-        assertEquals(false, state.isDefaultHome)
-
-        homeRole.isHeld = true
-
-        assertEquals(false, state.isDefaultHome)
-        state.refreshDefaultHome()
-        assertEquals(true, state.isDefaultHome)
-    }
-
     private fun idleMainLooper(milliseconds: Long) {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(milliseconds))
     }
@@ -315,8 +283,7 @@ class LauncherStateTest {
             appLauncher = appLauncher,
             appVisibilityStore = appVisibilityStore,
             packageChangeEvents = packageChangeEvents,
-            homeRole = homeRole,
-            homeRolePromptStore = homeRolePromptStore,
+            defaultHome = DefaultHome(FakeDefaultHomeAdapter()),
             wallpaperStore = wallpaperStore,
         ),
         scope = scope,

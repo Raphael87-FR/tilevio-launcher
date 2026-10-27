@@ -55,10 +55,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun LauncherScreen(
     dependencies: LauncherDependencies,
-    homeRoleVersion: Int,
     isSettingsVisible: Boolean,
     onSettingsVisibilityChange: (Boolean) -> Unit,
-    onActivateHomeRole: () -> Unit,
+    onActivateDefaultHome: (DefaultHomeActivation) -> Unit,
     onPickWallpaperImage: () -> Unit,
     wallpaperImageResult: WallpaperImageResult?,
     onWallpaperImageResultHandled: () -> Unit,
@@ -66,16 +65,13 @@ fun LauncherScreen(
     val scope = rememberCoroutineScope()
     val state = remember(dependencies, scope) { LauncherState(dependencies, scope) }
 
-    LaunchedEffect(state) {
-        if (state.takeInitialDefaultHomeRequest()) {
-            onActivateHomeRole()
-        }
+    val defaultHome = dependencies.defaultHome
+
+    LaunchedEffect(defaultHome) {
+        defaultHome.takeInitialActivation()?.let(onActivateDefaultHome)
     }
     DisposableEffect(state) {
         onDispose(state.watchCatalog())
-    }
-    LaunchedEffect(state, homeRoleVersion) {
-        state.refreshDefaultHome()
     }
     val visibleApps = state.visibleApps
     val gridState = rememberLazyGridState()
@@ -127,7 +123,8 @@ fun LauncherScreen(
             SettingsScreen(
                 state = state,
                 onPickWallpaperImage = onPickWallpaperImage,
-                onActivateHomeRole = onActivateHomeRole,
+                isDefaultHome = defaultHome.isActive,
+                onActivateDefaultHome = { onActivateDefaultHome(defaultHome.activation()) },
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {

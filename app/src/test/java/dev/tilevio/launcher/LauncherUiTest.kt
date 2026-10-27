@@ -351,21 +351,21 @@ class LauncherUiTest {
     }
 
     @Test
-    fun firstLaunchRequestsAvailableHomeRoleOnlyOnce() {
-        testApplication.homeRole.isHeld = false
+    fun firstLaunchRequestsAvailableDefaultHomeOnlyOnce() {
+        testApplication.defaultHomeAdapter.isHeld = false
 
         launchLauncher()
         composeRule.activity.recreate()
         composeRule.waitForIdle()
 
-        assertEquals(1, testApplication.homeRole.requestIntents.size)
+        assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
     }
 
     @Test
-    fun refusingHomeRoleRequestDoesNotPromptOnLaterLaunches() {
-        testApplication.homeRole.isHeld = false
+    fun refusingDefaultHomeRequestDoesNotPromptOnLaterLaunches() {
+        testApplication.defaultHomeAdapter.isHeld = false
         launchLauncher()
-        val request = testApplication.homeRole.requestIntents.single()
+        val request = testApplication.defaultHomeAdapter.requestIntents.single()
 
         shadowOf(composeRule.activity).receiveResult(
             request,
@@ -375,20 +375,20 @@ class LauncherUiTest {
         composeRule.activity.recreate()
         composeRule.waitForIdle()
 
-        assertEquals(1, testApplication.homeRole.requestIntents.size)
+        assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
     }
 
     @Test
     fun firstLaunchFallsBackToAndroidHomeSettingsWhenRoleIsUnavailable() {
-        testApplication.homeRole.isHeld = false
-        testApplication.homeRole.isAvailable = false
+        testApplication.defaultHomeAdapter.isHeld = false
+        testApplication.defaultHomeAdapter.isAvailable = false
 
         launchLauncher()
 
-        assertEquals(0, testApplication.homeRole.requestIntents.size)
+        assertEquals(0, testApplication.defaultHomeAdapter.requestIntents.size)
         assertEquals(
             Settings.ACTION_HOME_SETTINGS,
-            testApplication.homeRole.homeSettingsIntents.single().action,
+            testApplication.defaultHomeAdapter.homeSettingsIntents.single().action,
         )
         assertEquals(
             Settings.ACTION_HOME_SETTINGS,
@@ -397,11 +397,11 @@ class LauncherUiTest {
     }
 
     @Test
-    fun acceptingHomeRoleRequestUpdatesSettingsWithoutPromptingAgain() {
-        testApplication.homeRole.isHeld = false
+    fun acceptingDefaultHomeRequestUpdatesSettingsWithoutPromptingAgain() {
+        testApplication.defaultHomeAdapter.isHeld = false
         launchLauncher()
-        val request = testApplication.homeRole.requestIntents.single()
-        testApplication.homeRole.isHeld = true
+        val request = testApplication.defaultHomeAdapter.requestIntents.single()
+        testApplication.defaultHomeAdapter.isHeld = true
 
         shadowOf(composeRule.activity).receiveResult(
             request,
@@ -413,13 +413,13 @@ class LauncherUiTest {
         composeRule.onNodeWithText("Tilevio is your default home screen.").assertIsDisplayed()
         composeRule.activity.recreate()
         composeRule.waitForIdle()
-        assertEquals(1, testApplication.homeRole.requestIntents.size)
+        assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
     }
 
     @Test
     fun settingsShowsDefaultHomeActivationAndVersion() {
-        testApplication.homeRole.isHeld = false
-        testApplication.homeRolePromptStore.hasHandledInitialRequest = true
+        testApplication.defaultHomeAdapter.isHeld = false
+        testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
         launchLauncher()
 
         openSettings()
@@ -429,31 +429,31 @@ class LauncherUiTest {
     }
 
     @Test
-    fun settingsCanRequestHomeRoleAfterInitialRefusal() {
-        testApplication.homeRole.isHeld = false
-        testApplication.homeRolePromptStore.hasHandledInitialRequest = true
+    fun settingsCanRequestDefaultHomeAfterInitialRefusal() {
+        testApplication.defaultHomeAdapter.isHeld = false
+        testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
         launchLauncher()
         openSettings()
 
         activateDefaultHome()
 
-        assertEquals(1, testApplication.homeRole.requestIntents.size)
+        assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
     }
 
     @Test
     fun settingsFallsBackToAndroidHomeSettingsWhenRoleIsUnavailable() {
-        testApplication.homeRole.isHeld = false
-        testApplication.homeRole.isAvailable = false
-        testApplication.homeRolePromptStore.hasHandledInitialRequest = true
+        testApplication.defaultHomeAdapter.isHeld = false
+        testApplication.defaultHomeAdapter.isAvailable = false
+        testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
         launchLauncher()
         openSettings()
 
         activateDefaultHome()
 
-        assertEquals(0, testApplication.homeRole.requestIntents.size)
+        assertEquals(0, testApplication.defaultHomeAdapter.requestIntents.size)
         assertEquals(
             Settings.ACTION_HOME_SETTINGS,
-            testApplication.homeRole.homeSettingsIntents.single().action,
+            testApplication.defaultHomeAdapter.homeSettingsIntents.single().action,
         )
     }
 
@@ -561,7 +561,7 @@ class LauncherUiTest {
     @Test
     fun repeatedHomeIntentsReuseLauncherAndReturnFromSettings() {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
-        testApplication.homeRole.isHeld = false
+        testApplication.defaultHomeAdapter.isHeld = false
         launchLauncher()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
         openSettings()
@@ -575,7 +575,7 @@ class LauncherUiTest {
         composeRule.waitForIdle()
 
         assertEquals(activity, composeRule.activity)
-        assertEquals(1, testApplication.homeRole.requestIntents.size)
+        assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
         composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
     }
@@ -606,8 +606,8 @@ class LauncherUiTest {
     @Test
     fun remoteInputOpensSettingsAndActivatesDefaultHome() {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
-        testApplication.homeRole.isHeld = false
-        testApplication.homeRolePromptStore.hasHandledInitialRequest = true
+        testApplication.defaultHomeAdapter.isHeld = false
+        testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
         launchLauncher()
 
         composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
@@ -617,7 +617,7 @@ class LauncherUiTest {
         composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
 
-        assertEquals(1, testApplication.homeRole.requestIntents.size)
+        assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
     }
 
     @Test
@@ -889,8 +889,8 @@ class LauncherUiTest {
     @Config(qualifiers = "fr")
     fun frenchLocaleLocalizesSettingsAndErrors() {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
-        testApplication.homeRole.isHeld = false
-        testApplication.homeRolePromptStore.hasHandledInitialRequest = true
+        testApplication.defaultHomeAdapter.isHeld = false
+        testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
         launchLauncher()
 
         composeRule.onNodeWithContentDescription("Paramètres").requestFocus()

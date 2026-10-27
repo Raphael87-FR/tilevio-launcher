@@ -32,9 +32,9 @@ import androidx.compose.ui.unit.sp
 fun SettingsScreen(
     state: LauncherState,
     onPickWallpaperImage: () -> Unit,
-    onActivateHomeRole: () -> Unit,
+    isDefaultHome: Boolean,
+    onActivateDefaultHome: () -> Unit,
 ) {
-    val isDefaultHome = state.isDefaultHome
     val activationFocusRequester = remember { FocusRequester() }
     LaunchedEffect(isDefaultHome) {
         if (!isDefaultHome) {
@@ -116,7 +116,7 @@ fun SettingsScreen(
         } else {
             TextAction(
                 text = stringResource(R.string.set_default_home),
-                onClick = onActivateHomeRole,
+                onClick = onActivateDefaultHome,
                 focusRequester = activationFocusRequester,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)

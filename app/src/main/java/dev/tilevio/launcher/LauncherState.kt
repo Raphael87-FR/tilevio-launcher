@@ -31,8 +31,6 @@ class LauncherState(
     /** Null until the Wallpaper store has been read. */
     var wallpaper: WallpaperSelection? by mutableStateOf(null)
         private set
-    var isDefaultHome by mutableStateOf(dependencies.homeRole.isHeld)
-        private set
     var message: LauncherMessage? by mutableStateOf(null)
         private set
     private var loadJob: Job? = null
@@ -97,20 +95,6 @@ class LauncherState(
                 show(LauncherMessage.WallpaperImportFailure)
             }
         }
-    }
-
-    /** Returns true once, on the first launch where Tilevio is not yet the Default Home. */
-    fun takeInitialDefaultHomeRequest(): Boolean {
-        val promptStore = dependencies.homeRolePromptStore
-        if (dependencies.homeRole.isHeld || promptStore.hasHandledInitialRequest) {
-            return false
-        }
-        promptStore.hasHandledInitialRequest = true
-        return true
-    }
-
-    fun refreshDefaultHome() {
-        isDefaultHome = dependencies.homeRole.isHeld
     }
 
     private fun show(message: LauncherMessage) {

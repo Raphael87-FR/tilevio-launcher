@@ -8,8 +8,8 @@ class TestTilevioApplication : TilevioApplication() {
     val appLauncher = FakeAppLauncher()
     val appVisibilityStore = FakeAppVisibilityStore()
     val packageChangeEvents = FakePackageChangeEvents()
-    val homeRole = FakeHomeRoleAdapter()
-    val homeRolePromptStore = FakeHomeRolePromptStore()
+    val defaultHomeAdapter = FakeDefaultHomeAdapter()
+    private val defaultHome = DefaultHome(defaultHomeAdapter)
     var useAndroidAppLauncher = false
 
     override val launcherDependencies: LauncherDependencies by lazy {
@@ -24,8 +24,7 @@ class TestTilevioApplication : TilevioApplication() {
             },
             appVisibilityStore = appVisibilityStore,
             packageChangeEvents = packageChangeEvents,
-            homeRole = homeRole,
-            homeRolePromptStore = homeRolePromptStore,
+            defaultHome = defaultHome,
             wallpaperStore = SharedPreferencesWallpaperStore(this),
         )
     }
@@ -36,11 +35,12 @@ class TestTilevioApplication : TilevioApplication() {
         appLauncher.succeeds = true
         appVisibilityStore.reset()
         packageChangeEvents.reset()
-        homeRole.isAvailable = true
-        homeRole.isHeld = true
-        homeRole.requestIntents.clear()
-        homeRole.homeSettingsIntents.clear()
-        homeRolePromptStore.hasHandledInitialRequest = false
+        defaultHomeAdapter.isAvailable = true
+        defaultHomeAdapter.isHeld = true
+        defaultHomeAdapter.hasHandledInitialRequest = false
+        defaultHomeAdapter.requestIntents.clear()
+        defaultHomeAdapter.homeSettingsIntents.clear()
+        defaultHome.refresh()
         useAndroidAppLauncher = false
     }
 }
@@ -97,9 +97,10 @@ class FakeAppLauncher : AppLauncher {
     }
 }
 
-class FakeHomeRoleAdapter : HomeRoleAdapter {
+class FakeDefaultHomeAdapter : DefaultHomeAdapter {
     override var isAvailable = true
     override var isHeld = true
+    override var hasHandledInitialRequest = false
     val requestIntents = mutableListOf<Intent>()
     val homeSettingsIntents = mutableListOf<Intent>()
 
@@ -108,8 +109,4 @@ class FakeHomeRoleAdapter : HomeRoleAdapter {
 
     override fun createHomeSettingsIntent(): Intent = Intent(Settings.ACTION_HOME_SETTINGS)
         .also(homeSettingsIntents::add)
-}
-
-class FakeHomeRolePromptStore : HomeRolePromptStore {
-    override var hasHandledInitialRequest = false
 }
