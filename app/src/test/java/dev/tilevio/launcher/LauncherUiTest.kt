@@ -448,7 +448,7 @@ class LauncherUiTest {
         openSettings()
 
         composeRule.onNodeWithText("Set Tilevio as default home").assertIsDisplayed()
-        composeRule.onNodeWithText("Version 0.1.0").assertIsDisplayed()
+        composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
     }
 
     @Test
@@ -503,7 +503,7 @@ class LauncherUiTest {
         composeRule.waitForIdle()
 
         assertEquals(false, composeRule.activity.isFinishing)
-        composeRule.onNodeWithText("Version 0.1.0").assertDoesNotExist()
+        composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
         composeRule.onNodeWithText("Set Tilevio as default home").assertDoesNotExist()
     }
@@ -599,7 +599,7 @@ class LauncherUiTest {
 
         assertEquals(activity, composeRule.activity)
         assertEquals(1, testApplication.homeRole.requestIntents.size)
-        composeRule.onNodeWithText("Version 0.1.0").assertDoesNotExist()
+        composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
     }
 
@@ -637,7 +637,7 @@ class LauncherUiTest {
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionUp) }
         composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
-        composeRule.onNodeWithText("Version 0.1.0").assertIsDisplayed()
+        composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
 
         assertEquals(1, testApplication.homeRole.requestIntents.size)
@@ -920,7 +920,7 @@ class LauncherUiTest {
         composeRule.onNodeWithText("Ardoise").assertExists()
         composeRule.onNodeWithText("Gris chaud").assertExists()
         composeRule.onNodeWithText("Définir Tilevio comme écran d’accueil par défaut").assertExists()
-        composeRule.onNodeWithText("Version 0.1.0").assertIsDisplayed()
+        composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
         composeRule.onNodeWithText("Choisir une image").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         completeImageSelection(
@@ -1194,7 +1194,7 @@ class LauncherUiTest {
     private fun openSettings() {
         composeRule.onNodeWithContentDescription("Settings").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
-        composeRule.onNodeWithText("Version 0.1.0").assertIsDisplayed()
+        composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
     }
 
     private fun activateDefaultHome() {

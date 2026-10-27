@@ -35,31 +35,31 @@ Use the `zipalign` and `apksigner` tools from your installed Android SDK build-t
 ```bash
 "$ANDROID_SDK/build-tools/VERSION/zipalign" -p -f 4 \
   app/build/outputs/apk/release/app-release-unsigned.apk \
-  app/build/outputs/apk/release/tilevio-0.1.0-aligned.apk
+  app/build/outputs/apk/release/tilevio-0.2.0-aligned.apk
 
 "$ANDROID_SDK/build-tools/VERSION/apksigner" sign \
   --ks "$HOME/.tilevio/signing/tilevio-release.jks" \
   --ks-key-alias tilevio \
-  --out app/build/outputs/apk/release/tilevio-0.1.0.apk \
-  app/build/outputs/apk/release/tilevio-0.1.0-aligned.apk
+  --out app/build/outputs/apk/release/tilevio-0.2.0.apk \
+  app/build/outputs/apk/release/tilevio-0.2.0-aligned.apk
 
 "$ANDROID_SDK/build-tools/VERSION/apksigner" verify --verbose --print-certs \
-  app/build/outputs/apk/release/tilevio-0.1.0.apk
+  app/build/outputs/apk/release/tilevio-0.2.0.apk
 ```
 
 Confirm that verification succeeds and that the printed certificate belongs to the dedicated Tilevio release key. Keep the unsigned and aligned intermediate APKs out of GitHub Releases. Generated APKs are already excluded by the repository's build-output rules; do not force-add them.
 
 Install the signed APK on the validation TV and complete every item in the [real-TV validation checklist](real-tv-validation.md). Do not publish the release if any item fails.
 
-## Publish v0.1.0
+## Publish v0.2.0
 
-After validation passes and the user explicitly approves public publication, replace `<validated-commit-full-SHA>` below with the full 40-character SHA of the validated commit. The command creates the `v0.1.0` tag at that explicit target and publishes only the signed APK with installation notes:
+After validation passes and the user explicitly approves public publication, replace `<validated-commit-full-SHA>` below with the full 40-character SHA of the validated commit. The command creates the `v0.2.0` tag at that explicit target and publishes only the signed APK with installation notes:
 
 ```bash
-gh release create v0.1.0 \
-  app/build/outputs/apk/release/tilevio-0.1.0.apk \
+gh release create v0.2.0 \
+  app/build/outputs/apk/release/tilevio-0.2.0.apk \
   --target "<validated-commit-full-SHA>" \
-  --title "Tilevio Launcher v0.1.0" \
+  --title "Tilevio Launcher v0.2.0" \
   --notes "Install on Android TV or Google TV running Android 10 or later. Download the APK, allow your file manager to install unknown Apps when Android prompts you, and open the APK. After installation, open Tilevio, use the settings button to choose a Wallpaper and App visibility, and select Tilevio as your default HOME. If no HOME chooser appears, use the TV manufacturer's home-screen settings. See the README for details."
 ```
 
