@@ -26,8 +26,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
@@ -646,6 +648,19 @@ class LauncherUiTest {
 
         assertEquals(
             ComponentName("example.bravo", "example.bravo.TvActivity"),
+            testApplication.appLauncher.launchedApps.single().componentName,
+        )
+    }
+
+    @Test
+    fun accessibilityClickOpensTile() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+        launchLauncher()
+
+        composeRule.onNodeWithContentDescription("Alpha").performSemanticsAction(SemanticsActions.OnClick)
+
+        assertEquals(
+            ComponentName("example.alpha", "example.alpha.TvActivity"),
             testApplication.appLauncher.launchedApps.single().componentName,
         )
     }
