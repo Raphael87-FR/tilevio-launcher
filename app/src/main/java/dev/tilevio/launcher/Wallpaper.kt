@@ -31,8 +31,11 @@ interface WallpaperStore {
 
     fun select(wallpaper: Wallpaper)
 
-    /** Copies the image at [uri], bounded to a [width] x [height] screen, and selects it. */
-    fun importImage(uri: Uri, width: Int, height: Int): WallpaperSelection.Image
+    /**
+     * Copies the image at [uri], bounded to a [width] x [height] screen, and selects it. Returns null,
+     * keeping nothing, when a later choice was made before the import completed: the last choice wins.
+     */
+    fun importImage(uri: Uri, width: Int, height: Int): WallpaperSelection.Image?
 }
 
 class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperStore {
@@ -40,6 +43,8 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
     private val imageFile = File(context.filesDir, "wallpaper-image")
     private val lock = Any()
     private var cachedSelection: WallpaperSelection? = null
+    /** Incremented by every choice, so that an import can tell whether a later choice superseded it. */
+    private var choiceCount = 0L
 
     override val selection: WallpaperSelection
         get() {
@@ -49,7 +54,10 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
         }
 
     override fun select(wallpaper: Wallpaper) {
-        update(WallpaperSelection.Solid(wallpaper))
+        synchronized(lock) {
+            choiceCount++
+            update(WallpaperSelection.Solid(wallpaper))
+        }
     }
 
     private fun readSelection(): WallpaperSelection {
@@ -64,8 +72,9 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
             ?: WallpaperSelection.Solid(Wallpaper.Charcoal)
     }
 
-    override fun importImage(uri: Uri, width: Int, height: Int): WallpaperSelection.Image {
+    override fun importImage(uri: Uri, width: Int, height: Int): WallpaperSelection.Image? {
         require(width > 0 && height > 0)
+        val importChoice = synchronized(lock) { ++choiceCount }
         val bitmap = decodeToScreen(uri, width, height)
         val temporaryFile = File(context.filesDir, "wallpaper-image-${SystemClock.elapsedRealtimeNanos()}")
         try {
@@ -75,24 +84,28 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
                 }
                 output.fd.sync()
             }
-            if (!temporaryFile.renameTo(imageFile)) {
-                throw IOException("Could not store Wallpaper")
+            synchronized(lock) {
+                if (importChoice != choiceCount) {
+                    return null
+                }
+                if (!temporaryFile.renameTo(imageFile)) {
+                    throw IOException("Could not store Wallpaper")
+                }
+                return WallpaperSelection.Image(bitmap).also(::update)
             }
         } finally {
             temporaryFile.delete()
         }
-        return WallpaperSelection.Image(bitmap).also(::update)
     }
 
+    /** Call with [lock] held. */
     private fun update(selection: WallpaperSelection) {
         val id = when (selection) {
             is WallpaperSelection.Solid -> selection.wallpaper.id
             is WallpaperSelection.Image -> IMAGE_ID
         }
-        synchronized(lock) {
-            preferences.edit().putString("selected", id).apply()
-            cachedSelection = selection
-        }
+        preferences.edit().putString("selected", id).apply()
+        cachedSelection = selection
     }
 
     /**

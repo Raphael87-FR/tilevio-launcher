@@ -8,6 +8,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -68,7 +69,7 @@ class SharedPreferencesWallpaperStoreTest {
     fun importedImageIsAppliedAndRestoredByAFreshStore() {
         val uri = registerTestImage(context, "content://example/wallpaper", solidImage(4, 4, Color.RED)).uri
 
-        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 1920, height = 1080)
+        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 1920, height = 1080) as WallpaperSelection.Image
 
         assertEquals(Color.RED, imported.bitmap.getPixel(0, 0))
         val restored = SharedPreferencesWallpaperStore(context).selection as WallpaperSelection.Image
@@ -88,6 +89,38 @@ class SharedPreferencesWallpaperStoreTest {
 
         assertEquals(WallpaperSelection.Solid(Wallpaper.Graphite), store.selection)
         assertEquals(WallpaperSelection.Solid(Wallpaper.Graphite), SharedPreferencesWallpaperStore(context).selection)
+    }
+
+    @Test
+    fun solidWallpaperSelectedDuringAnImportWins() {
+        val store = SharedPreferencesWallpaperStore(context)
+        val document = registerTestImage(context, "content://example/wallpaper", solidImage(4, 4, Color.RED))
+        document.onOpen = { store.select(Wallpaper.Slate) }
+
+        val imported = store.importImage(document.uri, width = 1920, height = 1080)
+
+        assertNull(imported)
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), store.selection)
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), SharedPreferencesWallpaperStore(context).selection)
+        assertEquals(emptyList<String>(), wallpaperFileNames())
+    }
+
+    @Test
+    fun imageImportedDuringAnotherImportWins() {
+        val store = SharedPreferencesWallpaperStore(context)
+        val first = registerTestImage(context, "content://example/first", solidImage(4, 4, Color.RED))
+        val second = registerTestImage(context, "content://example/second", solidImage(4, 4, Color.GREEN))
+        var secondImport: WallpaperSelection.Image? = null
+        first.onOpen = { secondImport = store.importImage(second.uri, width = 1920, height = 1080) }
+
+        val firstImport = store.importImage(first.uri, width = 1920, height = 1080)
+
+        assertNull(firstImport)
+        assertEquals(Color.GREEN, (secondImport as WallpaperSelection.Image).bitmap.getPixel(0, 0))
+        assertEquals(Color.GREEN, (store.selection as WallpaperSelection.Image).bitmap.getPixel(0, 0))
+        val restored = SharedPreferencesWallpaperStore(context).selection as WallpaperSelection.Image
+        assertEquals(Color.GREEN, restored.bitmap.getPixel(0, 0))
+        assertEquals(listOf("wallpaper-image"), wallpaperFileNames())
     }
 
     @Test
@@ -116,7 +149,7 @@ class SharedPreferencesWallpaperStoreTest {
         }
         val uri = registerTestImage(context, "content://example/wide", image).uri
 
-        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 1920, height = 1080)
+        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 1920, height = 1080) as WallpaperSelection.Image
 
         assertEquals(1778, imported.bitmap.width)
         assertEquals(1000, imported.bitmap.height)
@@ -134,7 +167,7 @@ class SharedPreferencesWallpaperStoreTest {
         }
         val uri = registerTestImage(context, "content://example/large", image).uri
 
-        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 192, height = 108)
+        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 192, height = 108) as WallpaperSelection.Image
 
         assertEquals(192, imported.bitmap.width)
         assertEquals(108, imported.bitmap.height)
@@ -155,4 +188,7 @@ class SharedPreferencesWallpaperStoreTest {
         assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), store.selection)
         assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), SharedPreferencesWallpaperStore(context).selection)
     }
+
+    private fun wallpaperFileNames(): List<String> =
+        context.filesDir.list().orEmpty().filter { name -> name.startsWith("wallpaper-image") }.sorted()
 }

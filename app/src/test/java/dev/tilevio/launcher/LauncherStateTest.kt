@@ -5,11 +5,15 @@ import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.net.Uri
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import java.time.Duration
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -226,6 +230,46 @@ class LauncherStateTest {
         assertEquals(1080, wallpaper.bitmap.height)
         assertEquals(Color.RED, wallpaper.bitmap.getPixel(960, 540))
         assertEquals(null, state.message)
+    }
+
+    @Test
+    fun solidWallpaperSelectedDuringAnImageImportStaysApplied() {
+        val document = registerTestImage(context, "content://example/wallpaper", solidImage(4, 4, Color.RED))
+        val state = launcherState()
+        document.onOpen = { state.selectWallpaper(Wallpaper.Slate) }
+
+        state.importWallpaperImage(document.uri, width = 1920, height = 1080)
+
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), state.wallpaper)
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), SharedPreferencesWallpaperStore(context).selection)
+    }
+
+    @Test
+    fun solidWallpaperSelectedBeforeAStoredImageIsAppliedStaysApplied() {
+        val imageStored = CountDownLatch(1)
+        val applyImage = CountDownLatch(1)
+        val document = registerTestImage(context, "content://example/wallpaper", solidImage(4, 4, Color.RED))
+        val state = launcherState(
+            wallpaperStore = object : WallpaperStore by wallpaperStore {
+                override fun importImage(uri: Uri, width: Int, height: Int) =
+                    wallpaperStore.importImage(uri, width, height).also {
+                        imageStored.countDown()
+                        check(applyImage.await(5, TimeUnit.SECONDS))
+                    }
+            },
+            ioDispatcher = backgroundDispatcher,
+        )
+        waitUntil { state.wallpaper != null }
+
+        state.importWallpaperImage(document.uri, width = 1920, height = 1080)
+        check(imageStored.await(5, TimeUnit.SECONDS))
+        state.selectWallpaper(Wallpaper.Slate)
+        applyImage.countDown()
+        (backgroundDispatcher.executor as ExecutorService).submit {}.get(5, TimeUnit.SECONDS)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), state.wallpaper)
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), SharedPreferencesWallpaperStore(context).selection)
     }
 
     @Test

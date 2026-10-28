@@ -71,6 +71,7 @@ class LauncherState(
 
     fun selectWallpaper(wallpaper: Wallpaper) {
         wallpaperLoadJob.cancel()
+        importJob?.cancel()
         dependencies.wallpaperStore.select(wallpaper)
         this.wallpaper = WallpaperSelection.Solid(wallpaper)
     }
@@ -89,7 +90,7 @@ class LauncherState(
             try {
                 val image = withContext(ioDispatcher) {
                     dependencies.wallpaperStore.importImage(uri = uri, width = width, height = height)
-                }
+                } ?: return@launch
                 wallpaperLoadJob.cancel()
                 wallpaper = image
             } catch (exception: CancellationException) {

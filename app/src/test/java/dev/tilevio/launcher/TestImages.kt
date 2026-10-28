@@ -12,9 +12,14 @@ class TestDocument(val uri: Uri, private val bytes: ByteArray) {
     var openCount = 0
         private set
     var isAvailable = true
+    /** Runs while the document is being opened, as a slow read would let a concurrent action do. */
+    var onOpen: () -> Unit = {}
 
-    internal fun open() = ByteArrayInputStream(if (isAvailable) bytes else ByteArray(0))
-        .also { openCount++ }
+    internal fun open(): ByteArrayInputStream {
+        openCount++
+        onOpen()
+        return ByteArrayInputStream(if (isAvailable) bytes else ByteArray(0))
+    }
 }
 
 fun registerTestImage(context: Context, uri: String, image: Bitmap): TestDocument {
