@@ -5,7 +5,10 @@ import android.app.Application
 open class TilevioApplication : Application() {
     open val launcherDependencies: LauncherDependencies by lazy {
         LauncherDependencies(
-            launchableApps = AndroidLaunchableApps(packageManager),
+            launchableApps = AndroidLaunchableApps(
+                packageManager = packageManager,
+                tileWidthPx = resources.displayMetrics.widthPixels / TILE_COLUMN_COUNT,
+            ),
             ownPackageName = packageName,
             appLauncher = AndroidAppLauncher(this),
             appVisibilityStore = SharedPreferencesAppVisibilityStore(this),

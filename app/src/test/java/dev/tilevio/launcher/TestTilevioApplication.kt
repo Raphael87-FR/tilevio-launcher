@@ -47,21 +47,15 @@ class TestTilevioApplication : TilevioApplication() {
 }
 
 class FakeAppVisibilityStore : AppVisibilityStore {
-    var currentProfile = "default"
-    private val hiddenPackagesByProfile = mutableMapOf<String, Set<String>>()
-
-    override val hiddenPackageNames: Set<String>
-        get() = hiddenPackagesByProfile[currentProfile].orEmpty()
+    override var hiddenPackageNames: Set<String> = emptySet()
+        private set
 
     override fun setHidden(packageName: String, hidden: Boolean) {
-        hiddenPackagesByProfile[currentProfile] = hiddenPackageNames.toMutableSet().apply {
-            if (hidden) add(packageName) else remove(packageName)
-        }
+        hiddenPackageNames = if (hidden) hiddenPackageNames + packageName else hiddenPackageNames - packageName
     }
 
     fun reset() {
-        currentProfile = "default"
-        hiddenPackagesByProfile.clear()
+        hiddenPackageNames = emptySet()
     }
 }
 

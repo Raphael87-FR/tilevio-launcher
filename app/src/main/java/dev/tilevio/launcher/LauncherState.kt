@@ -113,14 +113,10 @@ class LauncherState(
     }
 }
 
-/** One App per package, preferring its TV entry, without Tilevio itself, sorted by label. */
+/** Apps without Tilevio itself, sorted by label. */
 private fun List<App>.toCatalog(ownPackageName: String): List<App> {
     val collator = Collator.getInstance()
     return filterNot { app -> app.componentName.packageName == ownPackageName }
-        .groupBy { app -> app.componentName.packageName }
-        .map { (_, entries) ->
-            entries.firstOrNull { app -> app.isTelevisionEntry } ?: entries.first()
-        }
         .sortedWith { left, right ->
             collator.compare(left.label, right.label)
                 .takeUnless { result -> result == 0 }

@@ -7,13 +7,13 @@ data class App(
     val componentName: ComponentName,
     val label: String,
     val icon: Bitmap,
-    val isTelevisionEntry: Boolean,
     val banner: Bitmap? = null,
 ) {
     val key: String
         get() = componentName.flattenToString()
 }
 
+/** Installed Apps, one per package. */
 fun interface LaunchableApps {
     fun load(): List<App>
 }

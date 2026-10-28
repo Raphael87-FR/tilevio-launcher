@@ -125,6 +125,24 @@ class SharedPreferencesWallpaperStoreTest {
     }
 
     @Test
+    fun largeImageIsScaledDownToCoverTheScreenAndCentered() {
+        val image = Bitmap.createBitmap(400, 300, Bitmap.Config.ARGB_8888)
+        for (x in 0 until image.width) {
+            for (y in 0 until image.height) {
+                image.setPixel(x, y, if (y < 30 || y >= 270) Color.RED else Color.GREEN)
+            }
+        }
+        val uri = registerTestImage(context, "content://example/large", image).uri
+
+        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 192, height = 108)
+
+        assertEquals(192, imported.bitmap.width)
+        assertEquals(108, imported.bitmap.height)
+        assertEquals(Color.GREEN, imported.bitmap.getPixel(96, 0))
+        assertEquals(Color.GREEN, imported.bitmap.getPixel(96, 107))
+    }
+
+    @Test
     fun failedImportKeepsThePreviousWallpaper() {
         val store = SharedPreferencesWallpaperStore(context)
         store.select(Wallpaper.Slate)

@@ -47,12 +47,11 @@ class LauncherStateTest {
     }
 
     @Test
-    fun catalogIsPresentedAlphabeticallyWithoutDuplicatesOrTilevio() {
+    fun catalogIsPresentedAlphabeticallyWithoutTilevio() {
         launchableApps.apps = listOf(
             app("Zulu", "zulu"),
-            app("Mobile Alpha", "duplicate", televisionActivity = false),
             app("Bravo", "bravo"),
-            app("Alpha", "duplicate", televisionActivity = true),
+            app("Alpha", "alpha"),
             app("Tilevio", OWN_PACKAGE_NAME),
         )
 
@@ -291,18 +290,12 @@ class LauncherStateTest {
         ioDispatcher = ioDispatcher,
     ).also { state -> state.watchCatalog() }
 
-    private fun app(
-        label: String,
-        packageSuffix: String,
-        televisionActivity: Boolean = true,
-    ): App {
+    private fun app(label: String, packageSuffix: String): App {
         val packageName = if (packageSuffix == OWN_PACKAGE_NAME) packageSuffix else "example.$packageSuffix"
-        val activityName = if (televisionActivity) "TvActivity" else "MobileActivity"
         return App(
-            componentName = ComponentName(packageName, "$packageName.$activityName"),
+            componentName = ComponentName(packageName, "$packageName.TvActivity"),
             label = label,
             icon = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888),
-            isTelevisionEntry = televisionActivity,
         )
     }
 

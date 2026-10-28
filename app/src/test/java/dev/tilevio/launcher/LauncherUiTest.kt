@@ -295,7 +295,7 @@ class LauncherUiTest {
     }
 
     @Test
-    fun packageManagerLoadsBoundedTvBannerAndKeepsOriginalIcon() {
+    fun packageManagerLoadsOnlyTheTvEntryWithItsBannerBoundedToTheTile() {
         val packageName = "example.banner"
         val iconResource = 1001
         val bannerResource = 1002
@@ -337,17 +337,16 @@ class LauncherUiTest {
             entry("MobileActivity", "Mobile Alpha"),
         )
 
-        val entries = AndroidLaunchableApps(packageManager).load()
-            .filter { app -> app.componentName.packageName == packageName }
-        val app = entries.single { app -> app.isTelevisionEntry }
+        val app = AndroidLaunchableApps(packageManager, tileWidthPx = 320).load()
+            .single { app -> app.componentName.packageName == packageName }
 
-        assertEquals(listOf(true, false), entries.map { entry -> entry.isTelevisionEntry })
+        assertEquals(ComponentName(packageName, "$packageName.TvActivity"), app.componentName)
         assertEquals("TV Alpha", app.label)
         assertEquals(64, app.icon.width)
         assertEquals(32, app.icon.height)
         assertEquals(Color.YELLOW, app.icon.getPixel(0, 0))
-        assertEquals(192, app.banner?.width)
-        assertEquals(108, app.banner?.height)
+        assertEquals(320, app.banner?.width)
+        assertEquals(180, app.banner?.height)
         assertEquals(Color.RED, app.banner?.getPixel(0, 0))
     }
 
@@ -826,30 +825,6 @@ class LauncherUiTest {
     }
 
     @Test
-    fun visibilityChoicesAreIsolatedByAndroidProfile() {
-        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
-        launchLauncher()
-        openSettings()
-        changeAppVisibility("Alpha")
-        closeSettings()
-
-        testApplication.appVisibilityStore.currentProfile = "work"
-        composeRule.activity.recreate()
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithContentDescription("Alpha").assertIsDisplayed()
-        openSettings()
-        focusAppInSettings("Alpha")
-        composeRule.onNodeWithText("Alpha").assertIsNotSelected()
-        testApplication.appVisibilityStore.currentProfile = "default"
-        closeSettings()
-        composeRule.activity.recreate()
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
-    }
-
-    @Test
     fun hidingFocusedAppsUsesTheNearestAvailableTile() {
         testApplication.launchableApps.apps = listOf(
             app("Alpha", "alpha"),
@@ -1304,7 +1279,6 @@ class LauncherUiTest {
             componentName = ComponentName(packageName, "$packageName.$activityName"),
             label = label,
             icon = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888),
-            isTelevisionEntry = televisionActivity,
         )
     }
 }

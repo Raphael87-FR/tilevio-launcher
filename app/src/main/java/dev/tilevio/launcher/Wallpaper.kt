@@ -3,7 +3,8 @@ package dev.tilevio.launcher
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.Matrix
+import android.graphics.ImageDecoder
+import android.graphics.Rect
 import android.net.Uri
 import android.os.SystemClock
 import androidx.compose.ui.graphics.Color
@@ -65,7 +66,7 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
 
     override fun importImage(uri: Uri, width: Int, height: Int): WallpaperSelection.Image {
         require(width > 0 && height > 0)
-        val bitmap = cropToScreen(decode(uri, width, height), width, height)
+        val bitmap = decodeToScreen(uri, width, height)
         val temporaryFile = File(context.filesDir, "wallpaper-image-${SystemClock.elapsedRealtimeNanos()}")
         try {
             FileOutputStream(temporaryFile).use { output ->
@@ -94,45 +95,24 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
         }
     }
 
-    private fun decode(uri: Uri, width: Int, height: Int): Bitmap {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        val input = context.contentResolver.openInputStream(uri) ?: throw IOException("Could not open image")
-        input.use { BitmapFactory.decodeStream(input, null, bounds) }
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            throw IOException("Invalid image")
+    /**
+     * Decodes the centered part of the image at [uri] that covers the screen, scaled down to the
+     * screen if larger. The decoder scales while decoding, so the full-size image is never in memory.
+     */
+    private fun decodeToScreen(uri: Uri, width: Int, height: Int): Bitmap {
+        return ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
+            val coverScale = maxOf(width.toFloat() / info.size.width, height.toFloat() / info.size.height)
+            val scale = minOf(coverScale, 1f)
+            val targetWidth = (info.size.width * scale).roundToInt().coerceAtLeast(1)
+            val targetHeight = (info.size.height * scale).roundToInt().coerceAtLeast(1)
+            val cropWidth = minOf(targetWidth, (width * scale / coverScale).roundToInt())
+            val cropHeight = minOf(targetHeight, (height * scale / coverScale).roundToInt())
+            val left = (targetWidth - cropWidth) / 2
+            val top = (targetHeight - cropHeight) / 2
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            decoder.setTargetSize(targetWidth, targetHeight)
+            decoder.crop = Rect(left, top, left + cropWidth, top + cropHeight)
         }
-        val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, width, height)
-        }
-        return context.contentResolver.openInputStream(uri)?.use { input ->
-            BitmapFactory.decodeStream(input, null, options)
-        } ?: throw IOException("Could not decode image")
-    }
-
-    /** Keeps the centered part of [bitmap] that covers the screen, scaled down to the screen if larger. */
-    private fun cropToScreen(bitmap: Bitmap, width: Int, height: Int): Bitmap {
-        val coverScale = maxOf(width.toFloat() / bitmap.width, height.toFloat() / bitmap.height)
-        val cropWidth = minOf(bitmap.width, (width / coverScale).roundToInt())
-        val cropHeight = minOf(bitmap.height, (height / coverScale).roundToInt())
-        val scale = minOf(coverScale, 1f)
-        val matrix = Matrix().apply { setScale(scale, scale) }
-        return Bitmap.createBitmap(
-            bitmap,
-            (bitmap.width - cropWidth) / 2,
-            (bitmap.height - cropHeight) / 2,
-            cropWidth,
-            cropHeight,
-            matrix,
-            true,
-        ).also { cropped -> if (cropped !== bitmap) bitmap.recycle() }
-    }
-
-    private fun sampleSize(sourceWidth: Int, sourceHeight: Int, width: Int, height: Int): Int {
-        var sampleSize = 1
-        while (sourceWidth / (sampleSize * 2) >= width && sourceHeight / (sampleSize * 2) >= height) {
-            sampleSize *= 2
-        }
-        return sampleSize
     }
 
     private companion object {
