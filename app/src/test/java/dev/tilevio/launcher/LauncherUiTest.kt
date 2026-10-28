@@ -142,7 +142,10 @@ class LauncherUiTest {
 
         val picker = openImagePicker()
         assertEquals(Intent.ACTION_OPEN_DOCUMENT, picker.action)
-        assertEquals(listOf("image/*"), picker.getStringArrayExtra(Intent.EXTRA_MIME_TYPES)?.toList())
+        assertEquals(
+            listOf("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"),
+            picker.getStringArrayExtra(Intent.EXTRA_MIME_TYPES)?.toList(),
+        )
         completeSuccessfulImageSelection(picker, document)
 
         composeRule.onNodeWithText("Choose image").assertIsSelected()

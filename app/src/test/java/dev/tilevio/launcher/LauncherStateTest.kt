@@ -221,7 +221,7 @@ class LauncherStateTest {
 
         waitUntil { state.wallpaper != null }
 
-        assertEquals(Color.RED, (state.wallpaper as WallpaperSelection.Image).bitmap.getPixel(0, 0))
+        assertColorNear(Color.RED, (state.wallpaper as WallpaperSelection.Image).bitmap.getPixel(0, 0))
         assertNotEquals(Looper.getMainLooper().thread, readThreads.single())
     }
 

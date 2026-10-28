@@ -131,7 +131,7 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
         if (isSettingsVisible) {
             SettingsScreen(
                 state = state,
-                onPickWallpaperImage = { pickWallpaperImage.launch(arrayOf("image/*")) },
+                onPickWallpaperImage = { pickWallpaperImage.launch(wallpaperImageTypes) },
                 isDefaultHome = defaultHome.isActive,
                 onActivateDefaultHome = activateDefaultHome,
             )

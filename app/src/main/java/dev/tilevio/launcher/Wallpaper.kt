@@ -3,14 +3,23 @@ package dev.tilevio.launcher
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.ImageDecoder
+import android.graphics.BitmapRegionDecoder
+import android.graphics.Canvas
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.RectF
+import android.media.ExifInterface
 import android.net.Uri
 import android.os.SystemClock
 import androidx.compose.ui.graphics.Color
+import androidx.core.graphics.withClip
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 enum class Wallpaper(val id: String, val color: Color, val labelRes: Int) {
@@ -19,6 +28,9 @@ enum class Wallpaper(val id: String, val color: Color, val labelRes: Int) {
     Slate("slate", Color(0xFF263238), R.string.wallpaper_slate),
     WarmGray("warm_gray", Color(0xFF2D2A26), R.string.wallpaper_warm_gray),
 }
+
+/** The image types an import can decode: those [BitmapRegionDecoder] reads. */
+val wallpaperImageTypes = arrayOf("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif")
 
 sealed interface WallpaperSelection {
     data class Solid(val wallpaper: Wallpaper) : WallpaperSelection
@@ -90,7 +102,8 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
         val temporaryFile = File(context.filesDir, "wallpaper-image-${SystemClock.elapsedRealtimeNanos()}")
         try {
             FileOutputStream(temporaryFile).use { output ->
-                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                // The result is opaque. As JPEG, a photo takes a fraction of its PNG size and decodes faster.
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)) {
                     throw IOException("Could not encode Wallpaper")
                 }
                 output.fd.sync()
@@ -121,25 +134,97 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
 
     /**
      * Decodes the centered part of the image at [uri] that covers the screen, scaled down to the
-     * screen if larger. The decoder scales while decoding, so the full-size image is never in memory.
+     * screen if larger, upright and over the window background. Only that part is decoded, a few
+     * rows at a time straight into the result, so the import holds little more than one screen.
      */
     private fun decodeToScreen(uri: Uri, width: Int, height: Int): Bitmap {
-        return ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
-            val coverScale = maxOf(width.toFloat() / info.size.width, height.toFloat() / info.size.height)
+        val decoder = openImage(uri).use { input ->
+            @Suppress("DEPRECATION")
+            BitmapRegionDecoder.newInstance(input, false)
+        } ?: throw IOException("Could not decode image")
+        try {
+            val exifOrientation = openImage(uri).use { input ->
+                ExifInterface(input).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+            }
+            val toResult = uprightMatrix(exifOrientation)
+            val upright = RectF(0f, 0f, decoder.width.toFloat(), decoder.height.toFloat()).also(toResult::mapRect)
+            val coverScale = maxOf(width / upright.width(), height / upright.height())
             val scale = minOf(coverScale, 1f)
-            val targetWidth = (info.size.width * scale).roundToInt().coerceAtLeast(1)
-            val targetHeight = (info.size.height * scale).roundToInt().coerceAtLeast(1)
-            val cropWidth = minOf(targetWidth, (width * scale / coverScale).roundToInt())
-            val cropHeight = minOf(targetHeight, (height * scale / coverScale).roundToInt())
-            val left = (targetWidth - cropWidth) / 2
-            val top = (targetHeight - cropHeight) / 2
-            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            decoder.setTargetSize(targetWidth, targetHeight)
-            decoder.crop = Rect(left, top, left + cropWidth, top + cropHeight)
+            val scaledWidth = upright.width() * scale
+            val scaledHeight = upright.height() * scale
+            val resultWidth = minOf(scaledWidth.roundToInt(), (width * scale / coverScale).roundToInt()).coerceAtLeast(1)
+            val resultHeight = minOf(scaledHeight.roundToInt(), (height * scale / coverScale).roundToInt()).coerceAtLeast(1)
+            toResult.postTranslate(-upright.left, -upright.top)
+            toResult.postScale(scale, scale)
+            toResult.postTranslate((resultWidth - scaledWidth) / 2, (resultHeight - scaledHeight) / 2)
+
+            // The part of the image that reaches the result, aligned on the sample grid so that strips meet exactly.
+            val sampleSize = (1 / scale).toInt().coerceAtLeast(1)
+            val visible = RectF(0f, 0f, resultWidth.toFloat(), resultHeight.toFloat())
+                .also(Matrix().also(toResult::invert)::mapRect)
+            fun alignDown(value: Float) = floor(value / sampleSize).toInt() * sampleSize
+            fun alignUp(value: Float) = ceil(value / sampleSize).toInt() * sampleSize
+            val region = Rect(
+                alignDown(visible.left).coerceAtLeast(0),
+                alignDown(visible.top).coerceAtLeast(0),
+                alignUp(visible.right).coerceAtMost(decoder.width),
+                alignUp(visible.bottom).coerceAtMost(decoder.height),
+            )
+            val stripPixels = resultWidth * resultHeight / STRIPS_PER_RESULT
+            val stripHeight = (stripPixels / (region.width() / sampleSize).coerceAtLeast(1)).coerceAtLeast(1) * sampleSize
+
+            val result = Bitmap.createBitmap(resultWidth, resultHeight, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(result)
+            // A transparent image shows the window background, as it did when displayed.
+            canvas.drawColor(context.getColor(R.color.wallpaper))
+            canvas.concat(toResult)
+            val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+            for (top in region.top until region.bottom step stripHeight) {
+                val strip = Rect(region.left, top, region.right, minOf(top + stripHeight, region.bottom))
+                // One more sample around the strip, so that filtering at its edges blends real neighbours.
+                val decoded = Rect(
+                    maxOf(strip.left - sampleSize, 0),
+                    maxOf(strip.top - sampleSize, 0),
+                    minOf(strip.right + sampleSize, decoder.width),
+                    minOf(strip.bottom + sampleSize, decoder.height),
+                )
+                val pixels = decoder.decodeRegion(decoded, options) ?: throw IOException("Could not decode image")
+                canvas.withClip(strip) { drawBitmap(pixels, null, decoded, paint) }
+                pixels.recycle()
+            }
+            return result
+        } finally {
+            decoder.recycle()
+        }
+    }
+
+    private fun openImage(uri: Uri): InputStream =
+        context.contentResolver.openInputStream(uri) ?: throw IOException("Could not open image")
+
+    /** Maps stored pixels to how the image is meant to be seen, up to a translation. */
+    private fun uprightMatrix(exifOrientation: Int): Matrix = Matrix().apply {
+        when (exifOrientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                setRotate(90f)
+                postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_90 -> setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                setRotate(270f)
+                postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> setRotate(270f)
         }
     }
 
     private companion object {
         const val IMAGE_ID = "image"
+        const val JPEG_QUALITY = 90
+        /** A strip decodes about the result's pixels divided by this. */
+        const val STRIPS_PER_RESULT = 4
     }
 }

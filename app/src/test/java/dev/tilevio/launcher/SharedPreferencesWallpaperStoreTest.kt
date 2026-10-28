@@ -2,7 +2,10 @@ package dev.tilevio.launcher
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.media.ExifInterface
 import androidx.test.core.app.ApplicationProvider
 import java.io.File
 import java.io.FileOutputStream
@@ -73,7 +76,7 @@ class SharedPreferencesWallpaperStoreTest {
 
         assertEquals(Color.RED, imported.bitmap.getPixel(0, 0))
         val restored = SharedPreferencesWallpaperStore(context).selection as WallpaperSelection.Image
-        assertEquals(Color.RED, restored.bitmap.getPixel(0, 0))
+        assertColorNear(Color.RED, restored.bitmap.getPixel(0, 0))
     }
 
     @Test
@@ -119,7 +122,7 @@ class SharedPreferencesWallpaperStoreTest {
         assertEquals(Color.GREEN, (secondImport as WallpaperSelection.Image).bitmap.getPixel(0, 0))
         assertEquals(Color.GREEN, (store.selection as WallpaperSelection.Image).bitmap.getPixel(0, 0))
         val restored = SharedPreferencesWallpaperStore(context).selection as WallpaperSelection.Image
-        assertEquals(Color.GREEN, restored.bitmap.getPixel(0, 0))
+        assertColorNear(Color.GREEN, restored.bitmap.getPixel(0, 0))
         assertEquals(listOf("wallpaper-image"), wallpaperFileNames())
     }
 
@@ -173,6 +176,50 @@ class SharedPreferencesWallpaperStoreTest {
         assertEquals(108, imported.bitmap.height)
         assertEquals(Color.GREEN, imported.bitmap.getPixel(96, 0))
         assertEquals(Color.GREEN, imported.bitmap.getPixel(96, 107))
+    }
+
+    @Test
+    fun portrait4kImageKeepsItsCenteredScreenPartWithoutGaps() {
+        val image = solidImage(2160, 3840, Color.RED)
+        Canvas(image).drawRect(0f, 1300f, 2160f, 2540f, Paint().apply { color = Color.GREEN })
+        val uri = registerTestImage(context, "content://example/portrait", image).uri
+
+        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 1920, height = 1080) as WallpaperSelection.Image
+
+        assertEquals(1920, imported.bitmap.width)
+        assertEquals(1080, imported.bitmap.height)
+        val pixels = IntArray(1920 * 1080).also { pixels -> imported.bitmap.getPixels(pixels, 0, 1920, 0, 0, 1920, 1080) }
+        assertEquals(setOf(Color.GREEN), pixels.toSet())
+    }
+
+    @Test
+    fun rotatedPhotoIsShownUpright() {
+        val image = solidImage(200, 100, Color.RED)
+        Canvas(image).drawRect(0f, 50f, 200f, 100f, Paint().apply { color = Color.BLUE })
+        val file = File(context.cacheDir, "rotated.jpg")
+        FileOutputStream(file).use { output -> image.compress(Bitmap.CompressFormat.JPEG, 100, output) }
+        ExifInterface(file.path).apply {
+            setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_ROTATE_90.toString())
+            saveAttributes()
+        }
+        val uri = registerTestDocument(context, "content://example/rotated", file.readBytes()).uri
+
+        val imported = SharedPreferencesWallpaperStore(context).importImage(uri, width = 1920, height = 1080) as WallpaperSelection.Image
+
+        assertEquals(100, imported.bitmap.width)
+        assertEquals(56, imported.bitmap.height)
+        assertColorNear(Color.BLUE, imported.bitmap.getPixel(10, 28))
+        assertColorNear(Color.RED, imported.bitmap.getPixel(90, 28))
+    }
+
+    @Test
+    fun transparentImageIsShownOverTheWindowBackground() {
+        val uri = registerTestImage(context, "content://example/transparent", solidImage(4, 4, Color.TRANSPARENT)).uri
+
+        SharedPreferencesWallpaperStore(context).importImage(uri, width = 1920, height = 1080)
+
+        val restored = SharedPreferencesWallpaperStore(context).selection as WallpaperSelection.Image
+        assertColorNear(0xFF171717.toInt(), restored.bitmap.getPixel(0, 0))
     }
 
     @Test

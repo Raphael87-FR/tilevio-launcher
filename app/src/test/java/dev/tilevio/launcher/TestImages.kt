@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.net.Uri
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import kotlin.math.abs
+import org.junit.Assert.assertTrue
 import org.robolectric.Shadows.shadowOf
 
 /** A document served by the Robolectric content resolver, as an image picker would return it. */
@@ -41,3 +43,9 @@ fun registerInvalidImage(context: Context, uri: String): TestDocument =
 
 fun solidImage(width: Int, height: Int, color: Int): Bitmap =
     Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
+
+/** Compares colors within the loss of the stored JPEG. */
+fun assertColorNear(expected: Int, actual: Int) {
+    val near = listOf(24, 16, 8, 0).all { shift -> abs((expected shr shift and 0xFF) - (actual shr shift and 0xFF)) <= 4 }
+    assertTrue("expected ${Integer.toHexString(expected)} but was ${Integer.toHexString(actual)}", near)
+}
