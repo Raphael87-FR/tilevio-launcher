@@ -14,6 +14,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,7 @@ import kotlinx.coroutines.cancel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -182,28 +184,44 @@ class LauncherStateTest {
     }
 
     @Test
-    fun wallpaperIsReadFromTheWallpaperStore() {
+    fun solidWallpaperIsShownBeforeAnyBackgroundRead() {
         SharedPreferencesWallpaperStore(context).select(Wallpaper.Graphite)
 
-        val state = launcherState()
+        val state = launcherState(
+            wallpaperStore = SharedPreferencesWallpaperStore(context),
+            ioDispatcher = NeverRunningDispatcher,
+        )
 
         assertEquals(WallpaperSelection.Solid(Wallpaper.Graphite), state.wallpaper)
     }
 
     @Test
-    fun wallpaperIsReadOffTheMainThread() {
+    fun imageDecodedDuringThisProcessIsShownBeforeAnyBackgroundRead() {
+        val imported = storeImage(Color.RED)
+
+        val state = launcherState(ioDispatcher = NeverRunningDispatcher)
+
+        assertSame(imported.bitmap, (state.wallpaper as WallpaperSelection.Image).bitmap)
+    }
+
+    @Test
+    fun storedImageIsDecodedOffTheMainThread() {
+        storeImage(Color.RED)
+        val restoredStore = SharedPreferencesWallpaperStore(context)
         val readThreads = CopyOnWriteArrayList<Thread>()
         val state = launcherState(
-            wallpaperStore = object : WallpaperStore by wallpaperStore {
+            wallpaperStore = object : WallpaperStore by restoredStore {
                 override val selection: WallpaperSelection
-                    get() = wallpaperStore.selection.also { readThreads += Thread.currentThread() }
+                    get() = restoredStore.selection.also { readThreads += Thread.currentThread() }
             },
             ioDispatcher = backgroundDispatcher,
         )
 
+        assertEquals(null, state.wallpaper)
+
         waitUntil { state.wallpaper != null }
 
-        assertEquals(WallpaperSelection.Solid(Wallpaper.Charcoal), state.wallpaper)
+        assertEquals(Color.RED, (state.wallpaper as WallpaperSelection.Image).bitmap.getPixel(0, 0))
         assertNotEquals(Looper.getMainLooper().thread, readThreads.single())
     }
 
@@ -259,7 +277,6 @@ class LauncherStateTest {
             },
             ioDispatcher = backgroundDispatcher,
         )
-        waitUntil { state.wallpaper != null }
 
         state.importWallpaperImage(document.uri, width = 1920, height = 1080)
         check(imageStored.await(5, TimeUnit.SECONDS))
@@ -304,6 +321,11 @@ class LauncherStateTest {
         assertEquals(null, state.message)
     }
 
+    private fun storeImage(color: Int): WallpaperSelection.Image {
+        val document = registerTestImage(context, "content://example/stored", solidImage(4, 4, color))
+        return checkNotNull(wallpaperStore.importImage(document.uri, width = 1920, height = 1080))
+    }
+
     private fun idleMainLooper(milliseconds: Long) {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(milliseconds))
     }
@@ -341,6 +363,11 @@ class LauncherStateTest {
             label = label,
             icon = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888),
         )
+    }
+
+    /** Never runs background work, so that a test sees only what is known on the first frame. */
+    private object NeverRunningDispatcher : CoroutineDispatcher() {
+        override fun dispatch(context: CoroutineContext, block: Runnable) = Unit
     }
 
     private companion object {

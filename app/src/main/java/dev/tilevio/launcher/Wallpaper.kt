@@ -29,6 +29,9 @@ sealed interface WallpaperSelection {
 interface WallpaperStore {
     val selection: WallpaperSelection
 
+    /** The selection when it is known without decoding an image, else null. Safe on the main thread. */
+    val knownSelection: WallpaperSelection?
+
     fun select(wallpaper: Wallpaper)
 
     /**
@@ -53,6 +56,9 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
             return synchronized(lock) { cachedSelection ?: selection.also { cachedSelection = it } }
         }
 
+    override val knownSelection: WallpaperSelection?
+        get() = synchronized(lock) { cachedSelection } ?: readSolidSelection()
+
     override fun select(wallpaper: Wallpaper) {
         synchronized(lock) {
             choiceCount++
@@ -61,15 +67,20 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
     }
 
     private fun readSelection(): WallpaperSelection {
-        val id = preferences.getString("selected", null)
-        if (id != IMAGE_ID) {
-            return WallpaperSelection.Solid(
-                Wallpaper.entries.firstOrNull { wallpaper -> wallpaper.id == id } ?: Wallpaper.Charcoal,
-            )
-        }
-        return BitmapFactory.decodeFile(imageFile.absolutePath)
-            ?.let(WallpaperSelection::Image)
+        return readSolidSelection()
+            ?: BitmapFactory.decodeFile(imageFile.absolutePath)?.let(WallpaperSelection::Image)
             ?: WallpaperSelection.Solid(Wallpaper.Charcoal)
+    }
+
+    /** Null when an image is selected. */
+    private fun readSolidSelection(): WallpaperSelection.Solid? {
+        val id = preferences.getString("selected", null)
+        if (id == IMAGE_ID) {
+            return null
+        }
+        return WallpaperSelection.Solid(
+            Wallpaper.entries.firstOrNull { wallpaper -> wallpaper.id == id } ?: Wallpaper.Charcoal,
+        )
     }
 
     override fun importImage(uri: Uri, width: Int, height: Int): WallpaperSelection.Image? {
