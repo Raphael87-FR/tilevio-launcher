@@ -14,7 +14,8 @@ class TestTilevioApplication : TilevioApplication() {
 
     override val launcherDependencies: LauncherDependencies by lazy {
         LauncherDependencies(
-            catalog = InstalledAppCatalog(launchableApps, packageName),
+            launchableApps = launchableApps,
+            ownPackageName = packageName,
             appLauncher = AppLauncher { app ->
                 if (useAndroidAppLauncher) {
                     AndroidAppLauncher(this).launch(app)

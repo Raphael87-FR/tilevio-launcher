@@ -337,13 +337,12 @@ class LauncherUiTest {
             entry("MobileActivity", "Mobile Alpha"),
         )
 
-        val app = InstalledAppCatalog(
-            AndroidLaunchableApps(packageManager),
-            testApplication.packageName,
-        ).loadApps().single { app -> app.componentName.packageName == packageName }
+        val entries = AndroidLaunchableApps(packageManager).load()
+            .filter { app -> app.componentName.packageName == packageName }
+        val app = entries.single { app -> app.isTelevisionEntry }
 
+        assertEquals(listOf(true, false), entries.map { entry -> entry.isTelevisionEntry })
         assertEquals("TV Alpha", app.label)
-        assertEquals(true, app.isTelevisionEntry)
         assertEquals(64, app.icon.width)
         assertEquals(32, app.icon.height)
         assertEquals(Color.YELLOW, app.icon.getPixel(0, 0))

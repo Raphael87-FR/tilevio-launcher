@@ -5,6 +5,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import java.text.Collator
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -50,7 +51,9 @@ class LauncherState(
     private fun refresh() {
         loadJob?.cancel()
         loadJob = scope.launch {
-            apps = withContext(ioDispatcher) { dependencies.catalog.loadApps() }
+            apps = withContext(ioDispatcher) {
+                dependencies.launchableApps.load().toCatalog(dependencies.ownPackageName)
+            }
         }
     }
 
@@ -108,6 +111,21 @@ class LauncherState(
             this@LauncherState.message = null
         }
     }
+}
+
+/** One App per package, preferring its TV entry, without Tilevio itself, sorted by label. */
+private fun List<App>.toCatalog(ownPackageName: String): List<App> {
+    val collator = Collator.getInstance()
+    return filterNot { app -> app.componentName.packageName == ownPackageName }
+        .groupBy { app -> app.componentName.packageName }
+        .map { (_, entries) ->
+            entries.firstOrNull { app -> app.isTelevisionEntry } ?: entries.first()
+        }
+        .sortedWith { left, right ->
+            collator.compare(left.label, right.label)
+                .takeUnless { result -> result == 0 }
+                ?: left.componentName.packageName.compareTo(right.componentName.packageName)
+        }
 }
 
 sealed interface LauncherMessage {

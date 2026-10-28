@@ -279,7 +279,8 @@ class LauncherStateTest {
         ioDispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
     ) = LauncherState(
         dependencies = LauncherDependencies(
-            catalog = InstalledAppCatalog(launchableApps, OWN_PACKAGE_NAME),
+            launchableApps = launchableApps,
+            ownPackageName = OWN_PACKAGE_NAME,
             appLauncher = appLauncher,
             appVisibilityStore = appVisibilityStore,
             packageChangeEvents = packageChangeEvents,
