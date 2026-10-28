@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import java.time.Duration
 import java.util.Calendar
 import org.junit.Assert.assertEquals
@@ -418,6 +419,21 @@ class LauncherUiTest {
     }
 
     @Test
+    fun returningToTheLauncherRefreshesTheDefaultHomeState() {
+        testApplication.defaultHomeAdapter.isHeld = false
+        testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
+        launchLauncher()
+
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        testApplication.defaultHomeAdapter.isHeld = true
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitForIdle()
+        openSettings()
+
+        composeRule.onNodeWithText("Tilevio is your default home screen.").assertIsDisplayed()
+    }
+
+    @Test
     fun settingsDoesNotShowActivationForAFrameAfterTheRequestIsAccepted() {
         testApplication.defaultHomeAdapter.isHeld = false
         testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
@@ -592,8 +608,9 @@ class LauncherUiTest {
         val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
 
         composeRule.runOnUiThread {
-            activity.onNewIntent(homeIntent)
-            activity.onNewIntent(homeIntent)
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            instrumentation.callActivityOnNewIntent(activity, homeIntent)
+            instrumentation.callActivityOnNewIntent(activity, homeIntent)
         }
         composeRule.waitForIdle()
 

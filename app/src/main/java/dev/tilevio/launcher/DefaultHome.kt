@@ -1,9 +1,19 @@
 package dev.tilevio.launcher
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 
 /** The platform side of the Default Home: the Home role, its preferences and the Intents that activate it. */
 interface DefaultHomeAdapter {
@@ -51,4 +61,39 @@ class DefaultHome(private val adapter: DefaultHomeAdapter) {
         adapter.hasHandledInitialRequest = true
         return activation()
     }
+}
+
+/**
+ * Connects [defaultHome] to the host: it is refreshed whenever the Launcher resumes, the first-launch activation is
+ * started once, and the returned function starts an activation on demand.
+ */
+@Composable
+fun rememberDefaultHomeActivator(defaultHome: DefaultHome): () -> Unit {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val request = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        defaultHome.refresh()
+    }
+    val activate = remember(defaultHome, context, request) {
+        fun(activation: DefaultHomeActivation) {
+            when (activation) {
+                is DefaultHomeActivation.Request -> request.launch(activation.intent)
+                is DefaultHomeActivation.HomeSettings -> context.startActivity(activation.intent)
+            }
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, defaultHome) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                defaultHome.refresh()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(defaultHome, activate) {
+        defaultHome.takeInitialActivation()?.let(activate)
+    }
+    return { activate(defaultHome.activation()) }
 }

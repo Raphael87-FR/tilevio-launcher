@@ -1,8 +1,14 @@
 package dev.tilevio.launcher
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.text.format.DateFormat
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +35,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -46,6 +53,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.OnNewIntentProvider
+import androidx.core.util.Consumer
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import java.time.DateTimeException
@@ -53,23 +62,22 @@ import java.util.Date
 import kotlinx.coroutines.delay
 
 @Composable
-fun LauncherScreen(
-    dependencies: LauncherDependencies,
-    isSettingsVisible: Boolean,
-    onSettingsVisibilityChange: (Boolean) -> Unit,
-    onActivateDefaultHome: (DefaultHomeActivation) -> Unit,
-    onPickWallpaperImage: () -> Unit,
-    wallpaperImageResult: WallpaperImageResult?,
-    onWallpaperImageResultHandled: () -> Unit,
-) {
+fun LauncherScreen(dependencies: LauncherDependencies) {
     val scope = rememberCoroutineScope()
     val state = remember(dependencies, scope) { LauncherState(dependencies, scope) }
+    var isSettingsVisible by remember { mutableStateOf(false) }
+    var pickedWallpaperImage by remember { mutableStateOf<Uri?>(null) }
 
     val defaultHome = dependencies.defaultHome
-
-    LaunchedEffect(defaultHome) {
-        defaultHome.takeInitialActivation()?.let(onActivateDefaultHome)
+    val activateDefaultHome = rememberDefaultHomeActivator(defaultHome)
+    val pickWallpaperImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        pickedWallpaperImage = uri
     }
+
+    BackHandler {
+        isSettingsVisible = false
+    }
+    CloseSettingsOnNewIntent { isSettingsVisible = false }
     DisposableEffect(state) {
         onDispose(state.watchCatalog())
     }
@@ -98,12 +106,10 @@ fun LauncherScreen(
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        LaunchedEffect(wallpaperImageResult) {
-            val result = wallpaperImageResult ?: return@LaunchedEffect
-            result.uri?.let { uri ->
-                state.importWallpaperImage(uri = uri, width = constraints.maxWidth, height = constraints.maxHeight)
-            }
-            onWallpaperImageResultHandled()
+        LaunchedEffect(pickedWallpaperImage) {
+            val uri = pickedWallpaperImage ?: return@LaunchedEffect
+            state.importWallpaperImage(uri = uri, width = constraints.maxWidth, height = constraints.maxHeight)
+            pickedWallpaperImage = null
         }
         when (val currentWallpaper = state.wallpaper) {
             is WallpaperSelection.Solid -> Box(
@@ -122,9 +128,9 @@ fun LauncherScreen(
         if (isSettingsVisible) {
             SettingsScreen(
                 state = state,
-                onPickWallpaperImage = onPickWallpaperImage,
+                onPickWallpaperImage = { pickWallpaperImage.launch(arrayOf("image/*")) },
                 isDefaultHome = defaultHome.isActive,
-                onActivateDefaultHome = { onActivateDefaultHome(defaultHome.activation()) },
+                onActivateDefaultHome = activateDefaultHome,
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -137,7 +143,7 @@ fun LauncherScreen(
                 ) {
                     HomeClock(modifier = Modifier.padding(end = 16.dp))
                     SettingsAction(
-                        onClick = { onSettingsVisibilityChange(true) },
+                        onClick = { isSettingsVisible = true },
                         focusRequester = settingsFocusRequester,
                         modifier = Modifier.focusProperties {
                             visibleApps.getOrNull(focusedIndex)?.let { app ->
@@ -206,6 +212,17 @@ fun LauncherScreen(
                 style = TextStyle(color = Color.White, fontSize = 18.sp),
             )
         }
+    }
+}
+
+@Composable
+private fun CloseSettingsOnNewIntent(onNewIntent: () -> Unit) {
+    val activity = LocalActivity.current as? OnNewIntentProvider ?: return
+    val currentOnNewIntent by rememberUpdatedState(onNewIntent)
+    DisposableEffect(activity) {
+        val listener = Consumer<Intent> { currentOnNewIntent() }
+        activity.addOnNewIntentListener(listener)
+        onDispose { activity.removeOnNewIntentListener(listener) }
     }
 }
 
