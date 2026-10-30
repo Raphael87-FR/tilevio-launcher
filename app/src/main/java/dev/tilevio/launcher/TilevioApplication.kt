@@ -7,9 +7,9 @@ open class TilevioApplication : Application() {
         LauncherDependencies(
             launchableApps = AndroidLaunchableApps(
                 packageManager = packageManager,
+                ownPackageName = packageName,
                 tileWidthPx = resources.displayMetrics.widthPixels / TILE_COLUMN_COUNT,
             ),
-            ownPackageName = packageName,
             appLauncher = AndroidAppLauncher(this),
             appVisibilityStore = SharedPreferencesAppVisibilityStore(this),
             packageChangeEvents = AndroidPackageChangeEvents(this),

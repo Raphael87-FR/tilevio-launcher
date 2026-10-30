@@ -15,7 +15,6 @@ class TestTilevioApplication : TilevioApplication() {
     override val launcherDependencies: LauncherDependencies by lazy {
         LauncherDependencies(
             launchableApps = launchableApps,
-            ownPackageName = packageName,
             appLauncher = AppLauncher { app ->
                 if (useAndroidAppLauncher) {
                     AndroidAppLauncher(this).launch(app)
@@ -78,8 +77,12 @@ class FakePackageChangeEvents : PackageChangeEvents {
 
 class FakeLaunchableApps : LaunchableApps {
     var apps: List<App> = emptyList()
+    val knownCatalogs = mutableListOf<List<App>>()
 
-    override fun load(): List<App> = apps
+    override fun load(known: List<App>): List<App> {
+        knownCatalogs += known
+        return apps
+    }
 }
 
 class FakeAppLauncher : AppLauncher {

@@ -5,6 +5,7 @@ package dev.tilevio.launcher
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageInfo
 import android.content.pm.ResolveInfo
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -321,6 +322,7 @@ class LauncherUiTest {
         }
         val packageManager = testApplication.packageManager
         val shadowPackageManager = shadowOf(packageManager)
+        shadowPackageManager.installPackage(PackageInfo().apply { this.packageName = packageName })
         shadowPackageManager.addDrawableResolution(
             packageName,
             iconResource,
@@ -351,7 +353,7 @@ class LauncherUiTest {
             entry("MobileActivity", "Mobile Alpha"),
         )
 
-        val app = AndroidLaunchableApps(packageManager, tileWidthPx = 320).load()
+        val app = AndroidLaunchableApps(packageManager, testApplication.packageName, tileWidthPx = 320).load(emptyList())
             .single { app -> app.componentName.packageName == packageName }
 
         assertEquals(ComponentName(packageName, "$packageName.TvActivity"), app.componentName)

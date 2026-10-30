@@ -53,17 +53,39 @@ class LauncherStateTest {
     }
 
     @Test
-    fun catalogIsPresentedAlphabeticallyWithoutTilevio() {
+    fun catalogIsPresentedAlphabetically() {
         launchableApps.apps = listOf(
             app("Zulu", "zulu"),
             app("Bravo", "bravo"),
             app("Alpha", "alpha"),
-            app("Tilevio", OWN_PACKAGE_NAME),
         )
 
         val state = launcherState()
 
         assertEquals(listOf("Alpha", "Bravo", "Zulu"), state.visibleApps.map(App::label))
+    }
+
+    @Test
+    fun packageChangeLoadsAgainFromTheCurrentCatalog() {
+        launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        val state = launcherState()
+        val catalog = state.apps
+
+        packageChangeEvents.emit()
+
+        assertEquals(listOf(emptyList(), catalog), launchableApps.knownCatalogs)
+    }
+
+    @Test
+    fun removedAppIsNoLongerKnownToTheNextLoad() {
+        launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
+        launcherState()
+
+        launchableApps.apps = listOf(app("Alpha", "alpha"))
+        packageChangeEvents.emit()
+        packageChangeEvents.emit()
+
+        assertEquals(listOf("Alpha"), launchableApps.knownCatalogs.last().map(App::label))
     }
 
     @Test
@@ -345,7 +367,6 @@ class LauncherStateTest {
     ) = LauncherState(
         dependencies = LauncherDependencies(
             launchableApps = launchableApps,
-            ownPackageName = OWN_PACKAGE_NAME,
             appLauncher = appLauncher,
             appVisibilityStore = appVisibilityStore,
             packageChangeEvents = packageChangeEvents,
@@ -357,7 +378,7 @@ class LauncherStateTest {
     ).also { state -> state.watchCatalog() }
 
     private fun app(label: String, packageSuffix: String): App {
-        val packageName = if (packageSuffix == OWN_PACKAGE_NAME) packageSuffix else "example.$packageSuffix"
+        val packageName = "example.$packageSuffix"
         return App(
             componentName = ComponentName(packageName, "$packageName.TvActivity"),
             label = label,
@@ -368,9 +389,5 @@ class LauncherStateTest {
     /** Never runs background work, so that a test sees only what is known on the first frame. */
     private object NeverRunningDispatcher : CoroutineDispatcher() {
         override fun dispatch(context: CoroutineContext, block: Runnable) = Unit
-    }
-
-    private companion object {
-        const val OWN_PACKAGE_NAME = "dev.tilevio.launcher"
     }
 }

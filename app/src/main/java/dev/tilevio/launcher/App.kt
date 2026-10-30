@@ -8,14 +8,16 @@ data class App(
     val label: String,
     val icon: Bitmap,
     val banner: Bitmap? = null,
+    val lastUpdateTime: Long = 0,
 ) {
     val key: String
         get() = componentName.flattenToString()
 }
 
-/** Installed Apps, one per package. */
+/** Installed Apps other than Tilevio itself, one per package. */
 fun interface LaunchableApps {
-    fun load(): List<App>
+    /** Reuses the Apps of [known] whose package and component did not change, so only changed packages load bitmaps. */
+    fun load(known: List<App>): List<App>
 }
 
 fun interface AppLauncher {
@@ -24,7 +26,6 @@ fun interface AppLauncher {
 
 data class LauncherDependencies(
     val launchableApps: LaunchableApps,
-    val ownPackageName: String,
     val appLauncher: AppLauncher,
     val appVisibilityStore: AppVisibilityStore,
     val packageChangeEvents: PackageChangeEvents,

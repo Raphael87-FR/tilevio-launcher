@@ -53,9 +53,8 @@ class LauncherState(
     private fun refresh() {
         loadJob?.cancel()
         loadJob = scope.launch {
-            apps = withContext(ioDispatcher) {
-                dependencies.launchableApps.load().toCatalog(dependencies.ownPackageName)
-            }
+            val known = apps
+            apps = withContext(ioDispatcher) { dependencies.launchableApps.load(known).sortedByLabel() }
         }
     }
 
@@ -116,15 +115,13 @@ class LauncherState(
     }
 }
 
-/** Apps without Tilevio itself, sorted by label. */
-private fun List<App>.toCatalog(ownPackageName: String): List<App> {
+private fun List<App>.sortedByLabel(): List<App> {
     val collator = Collator.getInstance()
-    return filterNot { app -> app.componentName.packageName == ownPackageName }
-        .sortedWith { left, right ->
-            collator.compare(left.label, right.label)
-                .takeUnless { result -> result == 0 }
-                ?: left.componentName.packageName.compareTo(right.componentName.packageName)
-        }
+    return sortedWith { left, right ->
+        collator.compare(left.label, right.label)
+            .takeUnless { result -> result == 0 }
+            ?: left.componentName.packageName.compareTo(right.componentName.packageName)
+    }
 }
 
 sealed interface LauncherMessage {
