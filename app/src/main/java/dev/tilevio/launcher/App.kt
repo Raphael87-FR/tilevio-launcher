@@ -2,6 +2,8 @@ package dev.tilevio.launcher
 
 import android.content.ComponentName
 import android.graphics.Bitmap
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 
 data class App(
     val componentName: ComponentName,
@@ -31,4 +33,5 @@ data class LauncherDependencies(
     val packageChangeEvents: PackageChangeEvents,
     val defaultHome: DefaultHome,
     val wallpaperStore: WallpaperStore,
+    val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 )

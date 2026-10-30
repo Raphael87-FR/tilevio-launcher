@@ -7,9 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import java.text.Collator
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -18,8 +16,8 @@ import kotlinx.coroutines.withContext
 class LauncherState(
     private val dependencies: LauncherDependencies,
     private val scope: CoroutineScope,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
+    private val ioDispatcher = dependencies.ioDispatcher
     var apps: List<App> by mutableStateOf(emptyList())
         private set
     private var hiddenPackageNames by mutableStateOf(dependencies.appVisibilityStore.hiddenPackageNames)

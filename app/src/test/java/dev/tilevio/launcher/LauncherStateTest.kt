@@ -372,9 +372,9 @@ class LauncherStateTest {
             packageChangeEvents = packageChangeEvents,
             defaultHome = DefaultHome(FakeDefaultHomeAdapter()),
             wallpaperStore = wallpaperStore,
+            ioDispatcher = ioDispatcher,
         ),
         scope = scope,
-        ioDispatcher = ioDispatcher,
     ).also { state -> state.watchCatalog() }
 
     private fun app(label: String, packageSuffix: String): App {
