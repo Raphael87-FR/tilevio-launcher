@@ -30,7 +30,7 @@ fun AppTile(
         contentScale = if (app.banner == null) ContentScale.Inside else ContentScale.Fit,
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(16f / 9f)
+            .aspectRatio(TileGeometry.ASPECT_RATIO)
             .clip(RoundedCornerShape(RemoteTokens.TileCornerRadius))
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyUp && event.key == Key.DirectionUp && upFocusRequester != null) {

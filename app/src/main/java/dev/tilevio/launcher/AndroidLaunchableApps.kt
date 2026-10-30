@@ -33,7 +33,7 @@ class AndroidLaunchableApps(
                         label = resolveInfo.loadLabel(packageManager).toString(),
                         icon = resolveInfo.loadIcon(packageManager).toBoundedBitmap(maxWidth = MAX_ICON_SIZE_PX, maxHeight = MAX_ICON_SIZE_PX),
                         banner = activityInfo.loadBanner(packageManager)
-                            ?.toBoundedBitmap(maxWidth = tileWidthPx, maxHeight = tileWidthPx * 9 / 16),
+                            ?.toBoundedBitmap(maxWidth = tileWidthPx, maxHeight = TileGeometry.bannerHeightPx(tileWidthPx)),
                         lastUpdateTime = lastUpdateTime,
                     )
             }

@@ -58,9 +58,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import java.util.Date
 import kotlinx.coroutines.delay
 
-/** Tiles per row; a Tile is never wider than the screen divided by this count. */
-internal const val TILE_COLUMN_COUNT = 5
-
 @Composable
 fun LauncherScreen(dependencies: LauncherDependencies) {
     val scope = rememberCoroutineScope()
@@ -158,23 +155,22 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
                     } else if (visibleApps.isEmpty()) {
                         EmptyCatalog(R.string.all_apps_hidden)
                     } else {
-                        val rowCount = (visibleApps.size + TILE_COLUMN_COUNT - 1) / TILE_COLUMN_COUNT
-                        val tileWidth = (maxWidth - 64.dp - 96.dp) / TILE_COLUMN_COUNT
-                        val tileHeight = tileWidth * 9f / 16f
-                        val gridHeight = tileHeight * rowCount + 24.dp * (rowCount - 1)
-                        val verticalPadding = ((maxHeight - gridHeight) / 2).coerceAtLeast(32.dp)
+                        val rowCount = (visibleApps.size + TileGeometry.COLUMN_COUNT - 1) / TileGeometry.COLUMN_COUNT
+                        val tileHeight = TileGeometry.height(TileGeometry.width(maxWidth))
+                        val gridHeight = tileHeight * rowCount + TileGeometry.GridGutter * (rowCount - 1)
+                        val verticalPadding = ((maxHeight - gridHeight) / 2).coerceAtLeast(TileGeometry.GridMargin)
                         LazyVerticalGrid(
-                            columns = GridCells.Fixed(TILE_COLUMN_COUNT),
+                            columns = GridCells.Fixed(TileGeometry.COLUMN_COUNT),
                             modifier = Modifier.fillMaxSize(),
                             state = gridState,
                             contentPadding = PaddingValues(
-                                start = 32.dp,
+                                start = TileGeometry.GridMargin,
                                 top = verticalPadding,
-                                end = 32.dp,
+                                end = TileGeometry.GridMargin,
                                 bottom = verticalPadding,
                             ),
-                            horizontalArrangement = Arrangement.spacedBy(24.dp),
-                            verticalArrangement = Arrangement.spacedBy(24.dp),
+                            horizontalArrangement = Arrangement.spacedBy(TileGeometry.GridGutter),
+                            verticalArrangement = Arrangement.spacedBy(TileGeometry.GridGutter),
                         ) {
                             itemsIndexed(
                                 items = visibleApps,

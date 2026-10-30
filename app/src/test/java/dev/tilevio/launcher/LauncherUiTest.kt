@@ -1037,6 +1037,22 @@ class LauncherUiTest {
     }
 
     @Test
+    @Config(qualifiers = "w960dp-h540dp-xhdpi")
+    fun bannerBoundIsTheSizeOfTheTileOnScreen() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+
+        launchLauncher()
+
+        val displayMetrics = composeRule.activity.resources.displayMetrics
+        val bannerWidth = TileGeometry.bannerWidthPx(displayMetrics.widthPixels, displayMetrics.density)
+        val size = composeRule.onNodeWithContentDescription("Alpha").fetchSemanticsNode().size
+        assertEquals(320, size.width)
+        assertEquals(180, size.height)
+        assertEquals(size.width, bannerWidth)
+        assertEquals(size.height, TileGeometry.bannerHeightPx(bannerWidth))
+    }
+
+    @Test
     @Config(qualifiers = "w1280dp-h720dp")
     fun nineAppsUseACenteredFiveColumnGridWithRegularGeometry() {
         testApplication.launchableApps.apps = (1..9).map { index ->

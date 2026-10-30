@@ -8,7 +8,7 @@ open class TilevioApplication : Application() {
             launchableApps = AndroidLaunchableApps(
                 packageManager = packageManager,
                 ownPackageName = packageName,
-                tileWidthPx = resources.displayMetrics.widthPixels / TILE_COLUMN_COUNT,
+                tileWidthPx = TileGeometry.bannerWidthPx(resources.displayMetrics.widthPixels, resources.displayMetrics.density),
             ),
             appLauncher = AndroidAppLauncher(this),
             appVisibilityStore = SharedPreferencesAppVisibilityStore(this),
