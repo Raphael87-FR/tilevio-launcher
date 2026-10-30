@@ -2,8 +2,6 @@ package dev.tilevio.launcher
 
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
-import android.os.SystemClock
 import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -56,8 +54,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.OnNewIntentProvider
 import androidx.core.util.Consumer
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import java.time.DateTimeException
+import androidx.lifecycle.repeatOnLifecycle
 import java.util.Date
 import kotlinx.coroutines.delay
 
@@ -232,22 +229,12 @@ private fun CloseSettingsOnNewIntent(onNewIntent: () -> Unit) {
 private fun HomeClock(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var currentTime by remember { mutableStateOf(currentWallTimeMillis()) }
-    var isVisible by remember(lifecycleOwner) {
-        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
-    }
+    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
 
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, _ ->
-            isVisible = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(lifecycleOwner, isVisible) {
-        if (isVisible) {
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
-                currentTime = currentWallTimeMillis()
+                currentTime = System.currentTimeMillis()
                 delay(60_000 - currentTime % 60_000)
             }
         }
@@ -263,17 +250,6 @@ private fun HomeClock(modifier: Modifier = Modifier) {
             fontFeatureSettings = "tnum",
         ),
     )
-}
-
-private fun currentWallTimeMillis(): Long {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        return System.currentTimeMillis()
-    }
-    return try {
-        SystemClock.currentNetworkTimeClock().millis()
-    } catch (_: DateTimeException) {
-        System.currentTimeMillis()
-    }
 }
 
 @Composable

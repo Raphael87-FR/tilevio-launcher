@@ -49,7 +49,11 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowSystemClock
 
 @RunWith(RobolectricTestRunner::class)
-@Config(application = TestTilevioApplication::class, sdk = [35])
+@Config(
+    application = TestTilevioApplication::class,
+    sdk = [35],
+    instrumentedPackages = ["dev.tilevio.launcher"],
+)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class LauncherUiTest {
     @get:Rule
@@ -77,11 +81,18 @@ class LauncherUiTest {
     }
 
     @Test
-    @Config(qualifiers = "en", sdk = [29])
-    fun clockUsesSystemTimeFallbackBeforeNetworkClockApi() {
-        launchLauncher()
+    @Config(qualifiers = "en", shadows = [NetworkClockOneHourAhead::class])
+    fun clockFollowsSystemTimeAfterManualChangeRatherThanNetworkTime() {
+        launchLauncherAt(hour = 13, minute = 37, second = 42)
 
-        composeRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
+        composeRule.onNodeWithText("13:37").assertIsDisplayed()
+
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        setSystemTime(hour = 20, minute = 15, second = 0)
+        composeRule.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("20:15").assertIsDisplayed()
     }
 
     @Test
@@ -1166,7 +1177,8 @@ class LauncherUiTest {
     }
 
     private fun setSystemTime(hour: Int, minute: Int, second: Int) {
-        val currentTime = SystemClock.currentNetworkTimeClock().millis()
+        // Robolectric serves System.currentTimeMillis() from uptime in instrumented app code only.
+        val currentTime = SystemClock.uptimeMillis()
         val calendar = Calendar.getInstance().apply {
             timeInMillis = currentTime
             add(Calendar.DATE, 1)
