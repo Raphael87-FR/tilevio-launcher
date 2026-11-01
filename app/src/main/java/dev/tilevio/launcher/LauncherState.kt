@@ -41,6 +41,22 @@ class LauncherState(
     private var importJob: Job? = null
     private var messageJob: Job? = null
 
+    init {
+        // An import outlives the Activity that started it: the store reports it to the Activity that replaced it.
+        val unwatchWallpaper = dependencies.wallpaperStore.watchSelection(::showStoredWallpaper)
+        scope.coroutineContext[Job]?.invokeOnCompletion { unwatchWallpaper() }
+        // A change between the first read of the Wallpaper and the watch above was not reported.
+        showStoredWallpaper()
+    }
+
+    private fun showStoredWallpaper() {
+        scope.launch {
+            val selection = dependencies.wallpaperStore.knownSelection ?: return@launch
+            wallpaperLoadJob?.cancel()
+            wallpaper = selection
+        }
+    }
+
     /** Loads the App catalog and reloads it on package changes until the returned function is called. */
     fun watchCatalog(): () -> Unit {
         val unregister = dependencies.packageChangeEvents.register(::refresh)

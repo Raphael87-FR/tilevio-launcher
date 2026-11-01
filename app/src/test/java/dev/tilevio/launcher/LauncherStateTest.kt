@@ -312,6 +312,89 @@ class LauncherStateTest {
     }
 
     @Test
+    fun imageImportCompletingAfterTheActivityIsRecreatedIsShown() {
+        val imports = importBlockedInStore()
+        val previousScope = CoroutineScope(Job() + Dispatchers.Main.immediate)
+        val previousState = launcherState(
+            ioDispatcher = backgroundDispatcher,
+            scope = previousScope,
+        )
+        previousState.importWallpaperImage(imports.document.uri, width = 1920, height = 1080)
+        check(imports.started.await(5, TimeUnit.SECONDS))
+        previousScope.cancel()
+        val state = launcherState()
+
+        imports.finish()
+
+        assertColorNear(Color.RED, (state.wallpaper as WallpaperSelection.Image).bitmap.getPixel(0, 0))
+    }
+
+    @Test
+    fun solidWallpaperSelectedAfterTheActivityIsRecreatedWinsOverTheEarlierImport() {
+        val imports = importBlockedInStore()
+        val previousScope = CoroutineScope(Job() + Dispatchers.Main.immediate)
+        val previousState = launcherState(
+            ioDispatcher = backgroundDispatcher,
+            scope = previousScope,
+        )
+        previousState.importWallpaperImage(imports.document.uri, width = 1920, height = 1080)
+        check(imports.started.await(5, TimeUnit.SECONDS))
+        previousScope.cancel()
+        val state = launcherState()
+        state.selectWallpaper(Wallpaper.Slate)
+
+        imports.finish()
+
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), state.wallpaper)
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), SharedPreferencesWallpaperStore(context).selection)
+    }
+
+    @Test
+    fun changeOfTheStoreSupersedesTheStoredImageStillBeingDecoded() {
+        storeImage(Color.RED)
+        val restoredStore = SharedPreferencesWallpaperStore(context)
+        val decoded = CountDownLatch(1)
+        val showDecoded = CountDownLatch(1)
+        val state = launcherState(
+            wallpaperStore = object : WallpaperStore by restoredStore {
+                override val selection: WallpaperSelection
+                    get() = restoredStore.selection.also {
+                        decoded.countDown()
+                        check(showDecoded.await(5, TimeUnit.SECONDS))
+                    }
+            },
+            ioDispatcher = backgroundDispatcher,
+        )
+        check(decoded.await(5, TimeUnit.SECONDS))
+
+        restoredStore.select(Wallpaper.Slate)
+        showDecoded.countDown()
+        (backgroundDispatcher.executor as ExecutorService).submit {}.get(5, TimeUnit.SECONDS)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(WallpaperSelection.Solid(Wallpaper.Slate), state.wallpaper)
+    }
+
+    @Test
+    fun stateStopsWatchingTheStoreWhenItsScopeEnds() {
+        val watchers = CopyOnWriteArrayList<() -> Unit>()
+        val watchedStore = object : WallpaperStore by wallpaperStore {
+            override fun watchSelection(onChange: () -> Unit): () -> Unit {
+                val unwatch = wallpaperStore.watchSelection(onChange)
+                watchers += onChange
+                return { watchers -= onChange; unwatch() }
+            }
+        }
+        val stateScope = CoroutineScope(Job() + Dispatchers.Main.immediate)
+        launcherState(wallpaperStore = watchedStore, scope = stateScope)
+        assertEquals(1, watchers.size)
+
+        stateScope.cancel()
+
+        assertEquals(0, watchers.size)
+    }
+
+    @Test
     fun failedImageImportShowsAMessageAndKeepsThePreviousWallpaper() {
         wallpaperStore.select(Wallpaper.Slate)
         val document = registerInvalidImage(context, "content://example/invalid")
@@ -348,6 +431,31 @@ class LauncherStateTest {
         return checkNotNull(wallpaperStore.importImage(document.uri, width = 1920, height = 1080))
     }
 
+    /** An import that stays in the store, once under way, until [BlockedImport.finish]. */
+    private fun importBlockedInStore(): BlockedImport {
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val document = registerTestImage(context, "content://example/wallpaper", solidImage(4, 4, Color.RED))
+        document.onOpen = {
+            started.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
+        }
+        return BlockedImport(document, started, release)
+    }
+
+    private inner class BlockedImport(
+        val document: TestDocument,
+        val started: CountDownLatch,
+        private val release: CountDownLatch,
+    ) {
+        /** Lets the import complete in the store, then runs what it posted to the main thread. */
+        fun finish() {
+            release.countDown()
+            (backgroundDispatcher.executor as ExecutorService).submit {}.get(5, TimeUnit.SECONDS)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+    }
+
     private fun idleMainLooper(milliseconds: Long) {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(milliseconds))
     }
@@ -364,6 +472,7 @@ class LauncherStateTest {
     private fun launcherState(
         wallpaperStore: WallpaperStore = this.wallpaperStore,
         ioDispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
+        scope: CoroutineScope = this.scope,
     ) = LauncherState(
         dependencies = LauncherDependencies(
             launchableApps = launchableApps,

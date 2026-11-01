@@ -18,6 +18,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -47,6 +48,13 @@ interface WallpaperStore {
     fun select(wallpaper: Wallpaper)
 
     /**
+     * Calls [onChange] after every change of the selection, from whichever thread made it, until the returned
+     * function is called. This includes an import that completes after its caller is gone. Read the new selection
+     * from [knownSelection], which a change always leaves known. Hand over and return: it runs with the store's lock held.
+     */
+    fun watchSelection(onChange: () -> Unit): () -> Unit
+
+    /**
      * Copies the image at [uri], bounded to a [width] x [height] screen, and selects it. Returns null,
      * keeping nothing, when a later choice was made before the import completed: the last choice wins.
      */
@@ -58,6 +66,7 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
     private val imageFile = File(context.filesDir, "wallpaper-image")
     private val lock = Any()
     private var cachedSelection: WallpaperSelection? = null
+    private val watchers = CopyOnWriteArrayList<() -> Unit>()
     /** Incremented by every choice, so that an import can tell whether a later choice superseded it. */
     private var choiceCount = 0L
 
@@ -76,6 +85,11 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
             choiceCount++
             update(WallpaperSelection.Solid(wallpaper))
         }
+    }
+
+    override fun watchSelection(onChange: () -> Unit): () -> Unit {
+        watchers += onChange
+        return { watchers -= onChange }
     }
 
     private fun readSelection(): WallpaperSelection {
@@ -130,6 +144,7 @@ class SharedPreferencesWallpaperStore(private val context: Context) : WallpaperS
         }
         preferences.edit().putString("selected", id).apply()
         cachedSelection = selection
+        watchers.forEach { onChange -> onChange() }
     }
 
     /**

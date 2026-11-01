@@ -80,6 +80,24 @@ class SharedPreferencesWallpaperStoreTest {
     }
 
     @Test
+    fun watcherIsToldOfEverySelectionUntilItStopsWatching() {
+        val store = SharedPreferencesWallpaperStore(context)
+        val selections = mutableListOf<WallpaperSelection?>()
+        val unwatch = store.watchSelection { selections += store.knownSelection }
+
+        store.select(Wallpaper.Slate)
+        val imported = store.importImage(
+            registerTestImage(context, "content://example/wallpaper", solidImage(4, 4, Color.RED)).uri,
+            width = 1920,
+            height = 1080,
+        )
+        unwatch()
+        store.select(Wallpaper.Graphite)
+
+        assertEquals(listOf(WallpaperSelection.Solid(Wallpaper.Slate), imported), selections)
+    }
+
+    @Test
     fun selectingASolidWallpaperAfterAnImageReplacesTheImage() {
         val store = SharedPreferencesWallpaperStore(context)
         store.importImage(
