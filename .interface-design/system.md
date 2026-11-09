@@ -114,3 +114,4 @@ The clock follows the device's 12-hour or 24-hour preference and displays no sec
 ## Decisions
 
 - 2026-10-27: Adopted the five-column, banner-led home screen and restrained clock/Settings header from the validated design discussion. Full product and testing contract: GitHub issue #14.
+- 2026-11-07 (planned). Open Settings in a right-side panel over the Launcher. Keep the Launcher visible so Wallpaper changes can be seen behind the Tiles. Retain Wallpaper choices, App visibility, Default Home selection, and version information. A vertically scrolling list with one App per row accommodates larger catalogs.
