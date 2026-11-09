@@ -23,6 +23,10 @@ An installed App whose Tile is intentionally omitted from the main screen. It re
 The visual representation of an App in the Launcher, displaying its Android TV banner when available and its original icon otherwise.
 _Avoid_: vignette
 
+**Settings**:
+The panel opened over the right side of the Launcher, from which the user chooses the Wallpaper, the Hidden Apps and the Default Home. The Launcher stays visible behind it.
+_Avoid_: settings screen, settings menu, paramètres
+
 **Wallpaper**:
 A static image or solid color chosen by the user and displayed behind the Tiles.
 _Avoid_: animated background, fond d’écran
