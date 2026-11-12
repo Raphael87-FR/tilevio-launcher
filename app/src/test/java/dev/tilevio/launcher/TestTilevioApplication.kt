@@ -2,6 +2,7 @@ package dev.tilevio.launcher
 
 import android.content.Intent
 import android.provider.Settings
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 
 class TestTilevioApplication : TilevioApplication() {
@@ -12,8 +13,10 @@ class TestTilevioApplication : TilevioApplication() {
     val defaultHomeAdapter = FakeDefaultHomeAdapter()
     private val defaultHome = DefaultHome(defaultHomeAdapter)
     var useAndroidAppLauncher = false
+    // Runs background work in place, because waitForIdle does not wait for other threads on Robolectric.
+    var ioDispatcher: CoroutineDispatcher = Dispatchers.Unconfined
 
-    override val launcherDependencies: LauncherDependencies by lazy {
+    private val dependencies: LauncherDependencies by lazy {
         LauncherDependencies(
             launchableApps = launchableApps,
             appLauncher = AppLauncher { app ->
@@ -27,10 +30,11 @@ class TestTilevioApplication : TilevioApplication() {
             packageChangeEvents = packageChangeEvents,
             defaultHome = defaultHome,
             wallpaperStore = SharedPreferencesWallpaperStore(this),
-            // Runs background work in place, because waitForIdle does not wait for other threads on Robolectric.
-            ioDispatcher = Dispatchers.Unconfined,
         )
     }
+
+    override val launcherDependencies: LauncherDependencies
+        get() = dependencies.copy(ioDispatcher = ioDispatcher)
 
     fun reset() {
         launchableApps.apps = emptyList()
@@ -45,6 +49,7 @@ class TestTilevioApplication : TilevioApplication() {
         defaultHomeAdapter.homeSettingsIntents.clear()
         defaultHome.refresh()
         useAndroidAppLauncher = false
+        ioDispatcher = Dispatchers.Unconfined
     }
 }
 

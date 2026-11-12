@@ -13,7 +13,7 @@
     <string name="hidden">Hidden</string>
     <string name="all_apps_hidden">All Apps are hidden. Open Settings to show an App again.</string>
     <string name="set_default_home">Set Tilevio as default home</string>
-    <string name="default_home_active">Tilevio is your default home screen.</string>
+    <string name="default_home_active">Default home active</string>
     <string name="wallpaper">Wallpaper</string>
     <string name="wallpaper_charcoal">Charcoal</string>
     <string name="wallpaper_graphite">Graphite</string>

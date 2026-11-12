@@ -144,31 +144,39 @@ private fun ColumnScope.MainSettings(
                 )
             }
         }
-    }
-    if (isDefaultHome) {
-        BasicText(
-            text = stringResource(R.string.default_home_active),
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 16.dp),
-            style = TextStyle(color = Color.White, fontSize = 20.sp),
-        )
-    } else {
-        TextAction(
-            text = stringResource(R.string.set_default_home),
-            onClick = onActivateDefaultHome,
-            focusRequester = activationFocusRequester,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 16.dp),
-        )
+        if (isDefaultHome) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_check),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                BasicText(
+                    text = stringResource(R.string.default_home_active),
+                    style = TextStyle(color = Color.White, fontSize = 16.sp),
+                )
+            }
+        } else {
+            TextAction(
+                text = stringResource(R.string.set_default_home),
+                onClick = onActivateDefaultHome,
+                focusRequester = activationFocusRequester,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
     BasicText(
         text = stringResource(R.string.version, BuildConfig.VERSION_NAME),
         modifier = Modifier
             .align(Alignment.CenterHorizontally)
             .padding(24.dp),
-        style = TextStyle(color = Color.White, fontSize = 18.sp),
+        style = TextStyle(color = Color.White, fontSize = 14.sp),
     )
 }
 
@@ -248,17 +256,19 @@ private fun WallpaperThumbnails(
     onSelectWallpaper: (Wallpaper) -> Unit,
     onChooseImage: () -> Unit,
 ) {
-    val selectedFocusRequester = remember { FocusRequester() }
+    val wallpaperFocusRequester = remember { FocusRequester() }
     val imageLabelRes = R.string.choose_wallpaper_image
     val selectedLabelRes = when (selection) {
         is WallpaperSelection.Solid -> selection.wallpaper.labelRes
         is WallpaperSelection.Image -> imageLabelRes
         null -> null
     }
-    LaunchedEffect(requestInitialFocus, selectedLabelRes) {
-        if (requestInitialFocus && selectedLabelRes != null) {
+    // A stored image can receive focus before its bitmap is ready.
+    val focusLabelRes = selectedLabelRes ?: imageLabelRes
+    LaunchedEffect(requestInitialFocus, focusLabelRes) {
+        if (requestInitialFocus) {
             withFrameNanos { }
-            selectedFocusRequester.requestFocus()
+            wallpaperFocusRequester.requestFocus()
         }
     }
     var focusedLabelRes by remember { mutableStateOf<Int?>(null) }
@@ -284,7 +294,7 @@ private fun WallpaperThumbnails(
                     labelRes = wallpaper.labelRes,
                     color = wallpaper.color,
                     isSelected = isSelected,
-                    focusRequester = selectedFocusRequester.takeIf { isSelected },
+                    focusRequester = wallpaperFocusRequester.takeIf { focusLabelRes == wallpaper.labelRes },
                     onFocusChange = onFocusChange,
                     onClick = { onSelectWallpaper(wallpaper) },
                     modifier = Modifier.weight(1f),
@@ -295,7 +305,7 @@ private fun WallpaperThumbnails(
                 labelRes = imageLabelRes,
                 color = RemoteTokens.ControlSurface,
                 isSelected = image != null,
-                focusRequester = selectedFocusRequester.takeIf { image != null },
+                focusRequester = wallpaperFocusRequester.takeIf { focusLabelRes == imageLabelRes },
                 onFocusChange = onFocusChange,
                 onClick = onChooseImage,
                 modifier = Modifier.weight(1f),

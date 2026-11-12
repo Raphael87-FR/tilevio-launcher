@@ -40,6 +40,8 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import java.time.Duration
 import java.util.Calendar
+import java.util.concurrent.Executor
+import kotlinx.coroutines.asCoroutineDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -215,6 +217,24 @@ class LauncherUiTest {
 
         awaitWallpaperPixel(Color.RED)
         assertEquals(openCount, document.openCount)
+    }
+
+    @Test
+    fun settingsFocusesTheStoredImageThumbnailWhileItLoads() {
+        val document = registerTestImage(testApplication, "content://example/wallpaper", solidImage(4, 4, Color.RED))
+        SharedPreferencesWallpaperStore(testApplication).importImage(document.uri, width = 960, height = 540)
+        val pendingIo = ArrayDeque<Runnable>()
+        testApplication.ioDispatcher = Executor { pendingIo.addLast(it) }.asCoroutineDispatcher()
+        launchLauncher()
+
+        openSettings()
+        val thumbnail = composeRule.onNodeWithContentDescription("Choose image")
+        thumbnail.assertIsNotSelected().assertIsFocused()
+
+        composeRule.runOnUiThread {
+            while (pendingIo.isNotEmpty()) pendingIo.removeFirst().run()
+        }
+        thumbnail.assertIsSelected().assertIsFocused()
     }
 
     @Test
@@ -452,7 +472,7 @@ class LauncherUiTest {
         )
         openSettings()
 
-        composeRule.onNodeWithText("Tilevio is your default home screen.").assertIsDisplayed()
+        composeRule.onNodeWithText("Default home active").assertIsDisplayed()
         composeRule.activity.recreate()
         composeRule.waitForIdle()
         assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
@@ -470,7 +490,7 @@ class LauncherUiTest {
         composeRule.waitForIdle()
         openSettings()
 
-        composeRule.onNodeWithText("Tilevio is your default home screen.").assertIsDisplayed()
+        composeRule.onNodeWithText("Default home active").assertIsDisplayed()
     }
 
     @Test
@@ -493,18 +513,40 @@ class LauncherUiTest {
         composeRule.mainClock.advanceTimeByFrame()
 
         composeRule.onNodeWithText("Set Tilevio as default home").assertDoesNotExist()
+        composeRule.onNodeWithText("Default home active").assertIsDisplayed()
     }
 
     @Test
-    fun settingsShowsDefaultHomeActivationAndVersion() {
+    fun settingsSkipsDefaultHomeConfirmationDuringRemoteNavigation() {
+        launchLauncher()
+        openSettings()
+
+        composeRule.onNodeWithContentDescription("Charcoal").assertIsFocused()
+        composeRule.onNodeWithText("Default home active").assertIsDisplayed()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        val apps = composeRule.onNodeWithText("0 hidden apps").assertIsFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        apps.assertIsFocused()
+    }
+
+    @Test
+    fun settingsOrdersMainEntriesAndFocusesDefaultHomeActivation() {
         testApplication.defaultHomeAdapter.isHeld = false
         testApplication.defaultHomeAdapter.hasHandledInitialRequest = true
         launchLauncher()
 
         openSettings()
 
-        composeRule.onNodeWithText("Set Tilevio as default home").assertIsDisplayed()
-        composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
+        val activation = composeRule.onNodeWithText("Set Tilevio as default home").assertIsFocused()
+        val entries = listOf(
+            composeRule.onNodeWithText("Settings"),
+            composeRule.onNodeWithContentDescription("Charcoal"),
+            composeRule.onNodeWithText("Apps"),
+            activation,
+            composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}"),
+        )
+        val bounds = entries.map { it.assertIsDisplayed().fetchSemanticsNode().boundsInRoot }
+        assertTrue(bounds.zipWithNext().all { (upper, lower) -> upper.bottom <= lower.top })
     }
 
     @Test
@@ -1113,6 +1155,8 @@ class LauncherUiTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithContentDescription("Paramètres").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        composeRule.onNodeWithText("Paramètres").assertIsDisplayed()
+        composeRule.onNodeWithText("Accueil par défaut actif").assertIsDisplayed()
         openApps("Applications")
         changeAppVisibility("Alpha")
         pressBack()

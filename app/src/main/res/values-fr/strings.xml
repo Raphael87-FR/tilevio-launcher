@@ -13,7 +13,7 @@
     <string name="hidden">Masquée</string>
     <string name="all_apps_hidden">Toutes les applications sont masquées. Ouvrez les paramètres pour en afficher une à nouveau.</string>
     <string name="set_default_home">Définir Tilevio comme écran d’accueil par défaut</string>
-    <string name="default_home_active">Tilevio est votre écran d’accueil par défaut.</string>
+    <string name="default_home_active">Accueil par défaut actif</string>
     <string name="wallpaper">Fond d’écran</string>
     <string name="wallpaper_charcoal">Anthracite</string>
     <string name="wallpaper_graphite">Graphite</string>

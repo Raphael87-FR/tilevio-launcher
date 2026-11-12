@@ -116,6 +116,11 @@ The clock follows the device's 12-hour or 24-hour preference and displays no sec
 - Open a scrollable Apps level in the same panel, in Launcher order. Each row shows the App icon, name and an eye for visibility. Dim the content and cross out the eye for Hidden Apps.
 - Keep the white focus outline at full opacity. Back returns focus to the Apps entry.
 
+### Default Home and version
+
+- Place Default Home after Apps and pin the version in small text at the bottom of the main level.
+- On opening Settings, focus the activation action if Tilevio still needs to become the Default Home. With Default Home active, focus the selected Wallpaper thumbnail and show a confirmation with a check mark. Remote navigation skips the confirmation.
+
 ## Motion and Resource Use
 
 - Add no decorative Tile animations or animated Wallpaper.
