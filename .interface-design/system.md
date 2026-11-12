@@ -41,7 +41,7 @@ Base: 4dp
 | `settings-scrim` | Black at 32% opacity | Dims the Launcher while Settings is open |
 | `control-surface` | `#292929` | Settings option and action container |
 | `control-border-resting` | `#666666` | Settings control at rest (1dp) |
-| `control-border-focused` | `#FFFFFF` | Settings control focused or selected (3dp) |
+| `control-border-focused` | `#FFFFFF` | Settings control with remote focus (3dp) |
 
 App banners and icons retain their original colors. Do not assign per-App brand colors or place artwork on invented card backgrounds.
 
@@ -99,11 +99,14 @@ The clock follows the device's 12-hour or 24-hour preference and displays no sec
 
 - Show the gear without a permanent card or background.
 - Preserve its accessible name and remote activation.
-- Provide a clear focus treatment when selected.
+- Show the white outline when the gear has remote focus.
 
 ### Wallpaper
 
 - Preserve the existing solid-color and imported-image choices.
+- Show the four colors and the image option in one row of thumbnails, with the focused name below.
+- Mark the active Wallpaper with a check mark. Use the white outline for remote focus.
+- Show the active image in the image thumbnail. Show a photo icon when a solid color is active.
 - Do not bundle or impose the landscape from the visual reference.
 - Keep essential text and focus indicators legible over the selected Wallpaper.
 

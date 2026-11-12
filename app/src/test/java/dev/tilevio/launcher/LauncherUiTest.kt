@@ -137,16 +137,26 @@ class LauncherUiTest {
     }
 
     @Test
-    fun settingsOffersFixedDarkNeutralWallpaperPalette() {
+    fun settingsShowsWallpaperThumbnailsInOrderWithTheFocusedNameBelow() {
         launchLauncher()
         openSettings()
 
         composeRule.onNodeWithText("Wallpaper").assertIsDisplayed()
+        val charcoal = composeRule.onNodeWithContentDescription("Charcoal")
+        charcoal.assertIsFocused().assertIsSelected()
+        val row = charcoal.fetchSemanticsNode().boundsInRoot
         composeRule.onNodeWithText("Charcoal").assertIsDisplayed()
-        composeRule.onNodeWithText("Graphite").assertIsDisplayed()
-        composeRule.onNodeWithText("Slate").assertIsDisplayed()
-        composeRule.onNodeWithText("Warm Gray").assertIsDisplayed()
-        composeRule.onNodeWithText("Custom color").assertDoesNotExist()
+
+        for (label in listOf("Graphite", "Slate", "Warm Gray", "Choose image")) {
+            composeRule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
+            val thumbnail = composeRule.onNodeWithContentDescription(label)
+            thumbnail.assertIsDisplayed().assertIsFocused().assertIsNotSelected()
+            assertEquals(row.top, thumbnail.fetchSemanticsNode().boundsInRoot.top)
+            val name = composeRule.onNodeWithText(label).assertIsDisplayed()
+            assertTrue(name.fetchSemanticsNode().boundsInRoot.top >= row.bottom)
+            composeRule.onNodeWithText("Charcoal").assertDoesNotExist()
+            charcoal.assertIsSelected().assertIsNotFocused()
+        }
     }
 
     @Test
@@ -161,9 +171,12 @@ class LauncherUiTest {
             listOf("image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"),
             picker.getStringArrayExtra(Intent.EXTRA_MIME_TYPES)?.toList(),
         )
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionLeft) }
+        composeRule.onNodeWithContentDescription("Warm Gray").assertIsFocused()
         completeSuccessfulImageSelection(picker, document)
 
-        composeRule.onNodeWithText("Choose image").assertIsSelected()
+        composeRule.onNodeWithContentDescription("Choose image").assertIsSelected().assertIsFocused()
+        assertEquals(Color.RED, tilePixel("Choose image", xFraction = 0.5f, yFraction = 0.5f))
         closeSettings()
         assertEquals(Color.RED, wallpaperPixel())
     }
@@ -208,7 +221,7 @@ class LauncherUiTest {
         val document = registerInvalidImage(testApplication, "content://example/invalid")
         launchLauncher()
         openSettings()
-        composeRule.onNodeWithText("Slate").requestFocus()
+        composeRule.onNodeWithContentDescription("Slate").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         composeRule.waitForIdle()
         val slateBehindPanel = wallpaperPixel()
@@ -216,7 +229,7 @@ class LauncherUiTest {
         completeImageSelection(openImagePicker(), document.uri)
 
         assertWallpaperImportFailure()
-        composeRule.onNodeWithText("Slate").assertIsSelected()
+        composeRule.onNodeWithContentDescription("Slate").assertIsSelected()
         assertEquals(slateBehindPanel, wallpaperPixel())
         closeSettings()
         assertEquals(0xFF263238.toInt(), wallpaperPixel())
@@ -235,7 +248,8 @@ class LauncherUiTest {
         completeImageSelection(openImagePicker(), second.uri)
 
         assertWallpaperImportFailure()
-        composeRule.onNodeWithText("Choose image").assertIsSelected()
+        composeRule.onNodeWithContentDescription("Choose image").assertIsSelected()
+        assertEquals(Color.RED, tilePixel("Choose image", xFraction = 0.5f, yFraction = 0.5f))
         assertEquals(imageBehindPanel, wallpaperPixel())
         closeSettings()
         assertEquals(Color.RED, wallpaperPixel())
@@ -246,10 +260,13 @@ class LauncherUiTest {
         val document = registerTestImage(testApplication, "content://example/wallpaper", solidImage(4, 4, Color.RED))
         launchLauncher()
         openSettings()
+        val placeholderPixel = tilePixel("Choose image", xFraction = 0.5f, yFraction = 0.5f)
         completeSuccessfulImageSelection(openImagePicker(), document)
 
-        composeRule.onNodeWithText("Graphite").requestFocus()
+        composeRule.onNodeWithContentDescription("Graphite").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        composeRule.onNodeWithContentDescription("Choose image").assertIsNotSelected()
+        assertEquals(placeholderPixel, tilePixel("Choose image", xFraction = 0.5f, yFraction = 0.5f))
         closeSettings()
         composeRule.activity.recreate()
 
@@ -292,10 +309,10 @@ class LauncherUiTest {
         openSettings()
         val previousWallpaper = wallpaperPixel()
 
-        composeRule.onNodeWithText("Slate").requestFocus()
+        composeRule.onNodeWithContentDescription("Slate").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
 
-        composeRule.onNodeWithText("Slate").assertIsSelected()
+        composeRule.onNodeWithContentDescription("Slate").assertIsSelected()
         assertTrue(wallpaperPixel() != previousWallpaper)
         assertTrue(isDimmedColor(wallpaperPixel(), 0xFF263238.toInt()))
         composeRule.onNodeWithText("Save").assertDoesNotExist()
@@ -307,12 +324,14 @@ class LauncherUiTest {
     fun selectedWallpaperSurvivesActivityRecreation() {
         launchLauncher()
         openSettings()
-        composeRule.onNodeWithText("Warm Gray").requestFocus()
+        composeRule.onNodeWithContentDescription("Warm Gray").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
 
         composeRule.activity.recreate()
 
         awaitWallpaperPixel(0xFF2D2A26.toInt())
+        openSettings()
+        composeRule.onNodeWithContentDescription("Warm Gray").assertIsSelected().assertIsFocused()
     }
 
     @Test
@@ -526,7 +545,7 @@ class LauncherUiTest {
         emptyCatalog.assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
         openSettings()
-        composeRule.onNodeWithText("Charcoal").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Charcoal").assertIsFocused()
         emptyCatalog.assertIsDisplayed()
     }
 
@@ -562,7 +581,7 @@ class LauncherUiTest {
             pressKey(Key.DirectionCenter)
         }
 
-        composeRule.onNodeWithText("Charcoal").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Charcoal").assertIsFocused()
         tile.assertIsNotFocused()
         gear.assertIsNotFocused()
         assertEquals(emptyList<App>(), testApplication.appLauncher.launchedApps)
@@ -863,7 +882,8 @@ class LauncherUiTest {
         composeRule.onNodeWithContentDescription("Bravo").assertIsDisplayed().assertIsNotFocused()
         changeAppVisibility("Alpha")
         composeRule.onNodeWithText("Alpha").assertIsNotSelected()
-        assertEquals(listOf("Alpha", "Bravo"), visibleAppNames())
+        composeRule.onNodeWithContentDescription("Alpha").assertIsDisplayed().assertIsNotFocused()
+        composeRule.onNodeWithContentDescription("Bravo").assertIsDisplayed().assertIsNotFocused()
         closeSettings()
 
         composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
@@ -976,13 +996,14 @@ class LauncherUiTest {
         composeRule.onNodeWithContentDescription("Paramètres").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         composeRule.onNodeWithText("Fond d’écran").assertIsDisplayed()
-        composeRule.onNodeWithText("Anthracite").assertExists()
-        composeRule.onNodeWithText("Graphite").assertExists()
-        composeRule.onNodeWithText("Ardoise").assertExists()
-        composeRule.onNodeWithText("Gris chaud").assertExists()
+        composeRule.onNodeWithContentDescription("Anthracite").assertExists()
+        composeRule.onNodeWithContentDescription("Graphite").assertExists()
+        composeRule.onNodeWithContentDescription("Ardoise").requestFocus().assertIsFocused()
+        composeRule.onNodeWithText("Ardoise").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Gris chaud").assertExists()
         composeRule.onNodeWithText("Définir Tilevio comme écran d’accueil par défaut").assertExists()
         composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
-        composeRule.onNodeWithText("Choisir une image").requestFocus()
+        composeRule.onNodeWithContentDescription("Choisir une image").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         completeImageSelection(
             shadowOf(composeRule.activity).nextStartedActivity,
@@ -1284,7 +1305,7 @@ class LauncherUiTest {
     }
 
     private fun openImagePicker(): Intent {
-        composeRule.onNodeWithText("Choose image").requestFocus()
+        composeRule.onNodeWithContentDescription("Choose image").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         return shadowOf(composeRule.activity).nextStartedActivity
     }

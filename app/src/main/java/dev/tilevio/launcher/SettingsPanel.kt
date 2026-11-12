@@ -3,28 +3,39 @@ package dev.tilevio.launcher
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,31 +81,12 @@ fun SettingsPanel(
                 )
             }
             item {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    maxItemsInEachRow = 2,
-                ) {
-                    Wallpaper.entries.forEach { wallpaper ->
-                        val isSelected = state.wallpaper == WallpaperSelection.Solid(wallpaper)
-                        WallpaperOption(
-                            label = stringResource(wallpaper.labelRes),
-                            color = wallpaper.color,
-                            isSelected = isSelected,
-                            requestInitialFocus = isDefaultHome && isSelected,
-                            onClick = { state.selectWallpaper(wallpaper) },
-                        )
-                    }
-                    val isImageSelected = state.wallpaper is WallpaperSelection.Image
-                    WallpaperOption(
-                        label = stringResource(R.string.choose_wallpaper_image),
-                        color = RemoteTokens.ControlSurface,
-                        isSelected = isImageSelected,
-                        requestInitialFocus = isDefaultHome && isImageSelected,
-                        onClick = { state.chooseWallpaperImage(onPickWallpaperImage) },
-                    )
-                }
+                WallpaperThumbnails(
+                    selection = state.wallpaper,
+                    requestInitialFocus = isDefaultHome,
+                    onSelectWallpaper = state::selectWallpaper,
+                    onChooseImage = { state.chooseWallpaperImage(onPickWallpaperImage) },
+                )
             }
             item {
                 BasicText(
@@ -177,32 +169,131 @@ private fun AppVisibilityOption(
 }
 
 @Composable
-private fun WallpaperOption(
-    label: String,
-    color: Color,
-    isSelected: Boolean,
+private fun WallpaperThumbnails(
+    selection: WallpaperSelection?,
     requestInitialFocus: Boolean,
-    onClick: () -> Unit,
+    onSelectWallpaper: (Wallpaper) -> Unit,
+    onChooseImage: () -> Unit,
 ) {
-    val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(requestInitialFocus) {
-        if (requestInitialFocus) {
+    val selectedFocusRequester = remember { FocusRequester() }
+    val imageLabelRes = R.string.choose_wallpaper_image
+    val selectedLabelRes = when (selection) {
+        is WallpaperSelection.Solid -> selection.wallpaper.labelRes
+        is WallpaperSelection.Image -> imageLabelRes
+        null -> null
+    }
+    LaunchedEffect(requestInitialFocus, selectedLabelRes) {
+        if (requestInitialFocus && selectedLabelRes != null) {
             withFrameNanos { }
-            focusRequester.requestFocus()
+            selectedFocusRequester.requestFocus()
         }
     }
-    BasicText(
-        text = label,
-        modifier = Modifier
+    var focusedLabelRes by remember { mutableStateOf<Int?>(null) }
+    val onFocusChange: (Int, Boolean) -> Unit = { labelRes, focused ->
+        if (focused) {
+            focusedLabelRes = labelRes
+        } else if (focusedLabelRes == labelRes) {
+            focusedLabelRes = null
+        }
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Wallpaper.entries.forEach { wallpaper ->
+                val isSelected = selectedLabelRes == wallpaper.labelRes
+                WallpaperThumbnail(
+                    labelRes = wallpaper.labelRes,
+                    color = wallpaper.color,
+                    isSelected = isSelected,
+                    focusRequester = selectedFocusRequester.takeIf { isSelected },
+                    onFocusChange = onFocusChange,
+                    onClick = { onSelectWallpaper(wallpaper) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            val image = selection as? WallpaperSelection.Image
+            WallpaperThumbnail(
+                labelRes = imageLabelRes,
+                color = RemoteTokens.ControlSurface,
+                isSelected = image != null,
+                focusRequester = selectedFocusRequester.takeIf { image != null },
+                onFocusChange = onFocusChange,
+                onClick = onChooseImage,
+                modifier = Modifier.weight(1f),
+            ) {
+                if (image != null) {
+                    // Leave a dark edge inside the white focus outline on bright images.
+                    val inset = RemoteTokens.ControlBorderFocusedWidth + 2.dp
+                    Image(
+                        bitmap = image.bitmap.asImageBitmap(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(inset)
+                            .clip(RoundedCornerShape(RemoteTokens.ControlCornerRadius - inset)),
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(R.drawable.ic_photo),
+                        contentDescription = null,
+                        modifier = Modifier.align(Alignment.Center).size(24.dp),
+                    )
+                }
+            }
+        }
+        BasicText(
+            text = focusedLabelRes?.let { stringResource(it) }.orEmpty(),
+            style = TextStyle(color = Color.White, fontSize = 18.sp),
+        )
+    }
+}
+
+@Composable
+private fun WallpaperThumbnail(
+    labelRes: Int,
+    color: Color,
+    isSelected: Boolean,
+    focusRequester: FocusRequester?,
+    onFocusChange: (Int, Boolean) -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit = {},
+) {
+    val label = stringResource(labelRes)
+    Box(
+        modifier = modifier
+            .aspectRatio(4f / 3)
             .remoteInteractive(
                 onActivate = onClick,
-                focusStyle = { focused -> controlFrame(highlighted = focused || isSelected, surface = color) },
+                focusStyle = { focused -> controlFrame(highlighted = focused, surface = color) },
                 focusRequester = focusRequester,
+                onFocusChange = { focused -> onFocusChange(labelRes, focused) },
                 selected = isSelected,
             )
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        style = TextStyle(color = Color.White, fontSize = 18.sp),
-    )
+            .semantics { contentDescription = label }
+            .clip(RoundedCornerShape(RemoteTokens.ControlCornerRadius)),
+    ) {
+        content()
+        if (isSelected) {
+            Image(
+                painter = painterResource(R.drawable.ic_check),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(18.dp)
+                    .background(Color.Black, CircleShape)
+                    .padding(2.dp),
+            )
+        }
+    }
 }
 
 @Composable
