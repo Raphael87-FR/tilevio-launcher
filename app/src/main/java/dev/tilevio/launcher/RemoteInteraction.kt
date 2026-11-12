@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
@@ -24,6 +25,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -43,14 +45,17 @@ internal object RemoteTokens {
     val ControlBorderRestingWidth = 1.dp
     val ControlBorderFocusedWidth = 3.dp
     val ControlCornerRadius = 8.dp
+
+    val SettingsPanelSurface = Color(0xFF171717)
+    val SettingsScrim = Color.Black.copy(alpha = 0.32f)
 }
 
 private val activationKeys = setOf(Key.DirectionCenter, Key.Enter, Key.NumPadEnter)
 
 /**
- * Makes an element operable by remote control: focusable, activated on KeyUp of an
- * activation key, and exposed to accessibility as clickable. [focusStyle] is applied
- * before focus handling, so it can draw around or behind the element's content.
+ * While [enabled], makes an element focusable, activates it on KeyUp of an activation key,
+ * and exposes an accessible click action. [focusStyle] is applied before focus handling,
+ * so it can draw around or behind the element's content.
  */
 internal fun Modifier.remoteInteractive(
     onActivate: () -> Unit,
@@ -59,17 +64,19 @@ internal fun Modifier.remoteInteractive(
     onFocusChange: (focused: Boolean) -> Unit = {},
     selected: Boolean? = null,
     mergeDescendants: Boolean = false,
+    enabled: Boolean = true,
 ): Modifier = composed {
     var focused by remember { mutableStateOf(false) }
     this
         .focusStyle(focused)
         .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+        .focusProperties { if (!enabled) canFocus = false }
         .onFocusChanged { state ->
             focused = state.isFocused
             onFocusChange(state.isFocused)
         }
         .onKeyEvent { event ->
-            if (event.type == KeyEventType.KeyUp && event.key in activationKeys) {
+            if (enabled && event.type == KeyEventType.KeyUp && event.key in activationKeys) {
                 onActivate()
                 true
             } else {
@@ -79,9 +86,13 @@ internal fun Modifier.remoteInteractive(
         .focusable()
         .semantics(mergeDescendants = mergeDescendants) {
             if (selected != null) this.selected = selected
-            onClick {
-                onActivate()
-                true
+            if (enabled) {
+                onClick {
+                    onActivate()
+                    true
+                }
+            } else {
+                disabled()
             }
         }
 }

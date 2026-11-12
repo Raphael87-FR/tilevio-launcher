@@ -23,6 +23,7 @@ fun AppTile(
     onFocused: () -> Unit,
     onOpen: () -> Unit,
     upFocusRequester: FocusRequester? = null,
+    enabled: Boolean = true,
 ) {
     Image(
         bitmap = (app.banner ?: app.icon).asImageBitmap(),
@@ -45,6 +46,7 @@ fun AppTile(
                 focusStyle = { focused -> tileFocusOutline(focused) },
                 focusRequester = focusRequester,
                 onFocusChange = { focused -> if (focused) onFocused() },
+                enabled = enabled,
             ),
     )
 }

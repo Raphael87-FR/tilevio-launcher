@@ -63,6 +63,7 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
     val scope = rememberCoroutineScope()
     val state = remember(dependencies, scope) { LauncherState(dependencies, scope) }
     var isSettingsVisible by remember { mutableStateOf(false) }
+    var preferGearFocus by remember { mutableStateOf(false) }
     var pickedWallpaperImage by remember { mutableStateOf<Uri?>(null) }
 
     val defaultHome = dependencies.defaultHome
@@ -71,10 +72,14 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
         pickedWallpaperImage = uri
     }
 
-    BackHandler {
-        isSettingsVisible = false
+    val closeSettings = {
+        if (isSettingsVisible) {
+            preferGearFocus = true
+            isSettingsVisible = false
+        }
     }
-    CloseSettingsOnNewIntent { isSettingsVisible = false }
+    BackHandler(onBack = closeSettings)
+    CloseSettingsOnNewIntent(closeSettings)
     DisposableEffect(state) {
         onDispose(state.watchCatalog())
     }
@@ -85,20 +90,22 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
     var focusedAppKey by remember { mutableStateOf<String?>(null) }
     var focusedIndex by remember { mutableIntStateOf(0) }
 
+    fun preferredTileIndex(): Int {
+        val matchingIndex = visibleApps.indexOfFirst { app -> app.key == focusedAppKey }
+        return matchingIndex.takeIf { index -> index >= 0 }
+            ?: focusedIndex.coerceAtMost(visibleApps.lastIndex)
+    }
+
     LaunchedEffect(visibleApps, isSettingsVisible) {
-        if (!isSettingsVisible) {
-            if (visibleApps.isNotEmpty()) {
-                val matchingIndex = visibleApps.indexOfFirst { app -> app.key == focusedAppKey }
-                val targetIndex = matchingIndex
-                    .takeIf { index -> index >= 0 }
-                    ?: focusedIndex.coerceIn(visibleApps.indices)
-                gridState.scrollToItem(targetIndex)
-                withFrameNanos { }
-                focusRequesters[visibleApps[targetIndex].key]?.requestFocus()
-            } else {
-                withFrameNanos { }
-                settingsFocusRequester.requestFocus()
-            }
+        if (isSettingsVisible) return@LaunchedEffect
+        if (preferGearFocus || visibleApps.isEmpty()) {
+            withFrameNanos { }
+            settingsFocusRequester.requestFocus()
+        } else {
+            val index = preferredTileIndex()
+            gridState.scrollToItem(index)
+            withFrameNanos { }
+            focusRequesters[visibleApps[index].key]?.requestFocus()
         }
     }
 
@@ -122,75 +129,83 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
             )
             null -> Unit
         }
-        if (isSettingsVisible) {
-            SettingsScreen(
-                state = state,
-                onPickWallpaperImage = { pickWallpaperImage.launch(wallpaperImageTypes) },
-                isDefaultHome = defaultHome.isActive,
-                onActivateDefaultHome = activateDefaultHome,
-            )
-        } else {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    HomeClock(modifier = Modifier.padding(end = 16.dp))
-                    SettingsAction(
-                        onClick = { isSettingsVisible = true },
-                        focusRequester = settingsFocusRequester,
-                        modifier = Modifier.focusProperties {
-                            visibleApps.getOrNull(focusedIndex)?.let { app ->
-                                down = focusRequesters.getOrPut(app.key) { FocusRequester() }
-                            }
-                        },
-                    )
-                }
-                BoxWithConstraints(modifier = Modifier.weight(1f)) {
-                    if (state.apps.isEmpty()) {
-                        EmptyCatalog(R.string.empty_catalog)
-                    } else if (visibleApps.isEmpty()) {
-                        EmptyCatalog(R.string.all_apps_hidden)
-                    } else {
-                        val rowCount = (visibleApps.size + TileGeometry.COLUMN_COUNT - 1) / TileGeometry.COLUMN_COUNT
-                        val tileHeight = TileGeometry.height(TileGeometry.width(maxWidth))
-                        val gridHeight = tileHeight * rowCount + TileGeometry.GridGutter * (rowCount - 1)
-                        val verticalPadding = ((maxHeight - gridHeight) / 2).coerceAtLeast(TileGeometry.GridMargin)
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(TileGeometry.COLUMN_COUNT),
-                            modifier = Modifier.fillMaxSize(),
-                            state = gridState,
-                            contentPadding = PaddingValues(
-                                start = TileGeometry.GridMargin,
-                                top = verticalPadding,
-                                end = TileGeometry.GridMargin,
-                                bottom = verticalPadding,
-                            ),
-                            horizontalArrangement = Arrangement.spacedBy(TileGeometry.GridGutter),
-                            verticalArrangement = Arrangement.spacedBy(TileGeometry.GridGutter),
-                        ) {
-                            itemsIndexed(
-                                items = visibleApps,
-                                key = { _, app -> app.key },
-                            ) { index, app ->
-                                AppTile(
-                                    app = app,
-                                    focusRequester = focusRequesters.getOrPut(app.key) { FocusRequester() },
-                                    upFocusRequester = settingsFocusRequester.takeIf { index == 0 },
-                                    onFocused = {
-                                        focusedAppKey = app.key
-                                        focusedIndex = index
-                                    },
-                                    onOpen = { state.launch(app) },
-                                )
-                            }
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                HomeClock(modifier = Modifier.padding(end = 16.dp))
+                SettingsAction(
+                    onClick = { isSettingsVisible = true },
+                    focusRequester = settingsFocusRequester,
+                    enabled = !isSettingsVisible,
+                    modifier = Modifier.focusProperties {
+                        val key = visibleApps.getOrNull(preferredTileIndex())?.key ?: return@focusProperties
+                        val isTileVisible = gridState.layoutInfo.visibleItemsInfo.any { item -> item.key == key }
+                        if (isTileVisible) {
+                            focusRequesters[key]?.let { down = it }
+                        }
+                    },
+                )
+            }
+            BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                if (state.apps.isEmpty()) {
+                    EmptyCatalog(R.string.empty_catalog)
+                } else if (visibleApps.isEmpty()) {
+                    EmptyCatalog(R.string.all_apps_hidden)
+                } else {
+                    val rowCount = (visibleApps.size + TileGeometry.COLUMN_COUNT - 1) / TileGeometry.COLUMN_COUNT
+                    val tileHeight = TileGeometry.height(TileGeometry.width(maxWidth))
+                    val gridHeight = tileHeight * rowCount + TileGeometry.GridGutter * (rowCount - 1)
+                    val verticalPadding = ((maxHeight - gridHeight) / 2).coerceAtLeast(TileGeometry.GridMargin)
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(TileGeometry.COLUMN_COUNT),
+                        modifier = Modifier.fillMaxSize(),
+                        state = gridState,
+                        userScrollEnabled = !isSettingsVisible,
+                        contentPadding = PaddingValues(
+                            start = TileGeometry.GridMargin,
+                            top = verticalPadding,
+                            end = TileGeometry.GridMargin,
+                            bottom = verticalPadding,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(TileGeometry.GridGutter),
+                        verticalArrangement = Arrangement.spacedBy(TileGeometry.GridGutter),
+                    ) {
+                        itemsIndexed(
+                            items = visibleApps,
+                            key = { _, app -> app.key },
+                        ) { index, app ->
+                            AppTile(
+                                app = app,
+                                focusRequester = focusRequesters.getOrPut(app.key) { FocusRequester() },
+                                upFocusRequester = settingsFocusRequester.takeIf { index == 0 },
+                                onFocused = {
+                                    preferGearFocus = false
+                                    focusedAppKey = app.key
+                                    focusedIndex = index
+                                },
+                                onOpen = { state.launch(app) },
+                                enabled = !isSettingsVisible,
+                            )
                         }
                     }
                 }
             }
+        }
+
+        if (isSettingsVisible) {
+            Box(modifier = Modifier.matchParentSize().background(RemoteTokens.SettingsScrim))
+            SettingsPanel(
+                state = state,
+                onPickWallpaperImage = { pickWallpaperImage.launch(wallpaperImageTypes) },
+                isDefaultHome = defaultHome.isActive,
+                onActivateDefaultHome = activateDefaultHome,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
         }
 
         state.message?.let { message ->

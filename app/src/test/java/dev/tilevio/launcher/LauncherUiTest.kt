@@ -19,6 +19,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -39,6 +40,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import java.time.Duration
 import java.util.Calendar
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -54,6 +56,7 @@ import org.robolectric.shadows.ShadowSystemClock
     application = TestTilevioApplication::class,
     sdk = [35],
     instrumentedPackages = ["dev.tilevio.launcher"],
+    qualifiers = "w960dp-h540dp",
 )
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class LauncherUiTest {
@@ -69,7 +72,7 @@ class LauncherUiTest {
     }
 
     @Test
-    @Config(qualifiers = "en")
+    @Config(qualifiers = "+en")
     fun clockUsesSystemTimeFormat() {
         launchLauncherAt(hour = 13, minute = 37, second = 42)
 
@@ -82,7 +85,7 @@ class LauncherUiTest {
     }
 
     @Test
-    @Config(qualifiers = "en", shadows = [NetworkClockOneHourAhead::class])
+    @Config(qualifiers = "+en", shadows = [NetworkClockOneHourAhead::class])
     fun clockFollowsSystemTimeAfterManualChangeRatherThanNetworkTime() {
         launchLauncherAt(hour = 13, minute = 37, second = 42)
 
@@ -97,8 +100,8 @@ class LauncherUiTest {
     }
 
     @Test
-    @Config(qualifiers = "en")
-    fun clockRefreshesAtMinuteChangesOnlyOnHome() {
+    @Config(qualifiers = "+en")
+    fun clockRefreshesAtMinuteChangesWhileLauncherIsVisible() {
         launchLauncherAt(hour = 13, minute = 37, second = 50)
         composeRule.onNodeWithText("13:37").assertIsDisplayed()
 
@@ -118,9 +121,9 @@ class LauncherUiTest {
 
         composeRule.onNodeWithText("13:39").assertIsDisplayed()
         openSettings()
-        composeRule.onNodeWithText("13:39").assertDoesNotExist()
 
         advanceTimeBy(60_000)
+        composeRule.onNodeWithText("13:40").assertExists()
         closeSettings()
 
         composeRule.onNodeWithText("13:40").assertIsDisplayed()
@@ -161,6 +164,7 @@ class LauncherUiTest {
         completeSuccessfulImageSelection(picker, document)
 
         composeRule.onNodeWithText("Choose image").assertIsSelected()
+        closeSettings()
         assertEquals(Color.RED, wallpaperPixel())
     }
 
@@ -173,7 +177,8 @@ class LauncherUiTest {
 
         composeRule.activity.recreate()
         composeRule.waitForIdle()
-        completeSuccessfulImageSelection(picker, document)
+        completeImageSelection(picker, document.uri)
+        awaitWallpaperPixel(Color.RED)
 
         assertEquals(Color.RED, wallpaperPixel())
         val openCount = document.openCount
@@ -205,11 +210,15 @@ class LauncherUiTest {
         openSettings()
         composeRule.onNodeWithText("Slate").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        composeRule.waitForIdle()
+        val slateBehindPanel = wallpaperPixel()
 
         completeImageSelection(openImagePicker(), document.uri)
 
         assertWallpaperImportFailure()
         composeRule.onNodeWithText("Slate").assertIsSelected()
+        assertEquals(slateBehindPanel, wallpaperPixel())
+        closeSettings()
         assertEquals(0xFF263238.toInt(), wallpaperPixel())
     }
 
@@ -221,12 +230,14 @@ class LauncherUiTest {
         launchLauncher()
         openSettings()
         completeSuccessfulImageSelection(openImagePicker(), first)
-        assertEquals(Color.RED, wallpaperPixel())
+        val imageBehindPanel = wallpaperPixel()
 
         completeImageSelection(openImagePicker(), second.uri)
 
         assertWallpaperImportFailure()
         composeRule.onNodeWithText("Choose image").assertIsSelected()
+        assertEquals(imageBehindPanel, wallpaperPixel())
+        closeSettings()
         assertEquals(Color.RED, wallpaperPixel())
     }
 
@@ -247,7 +258,7 @@ class LauncherUiTest {
 
     @Test
     fun importedWallpaperFillsScreenWithPreservedAspectRatioAndCenterCrop() {
-        val image = Bitmap.createBitmap(400, 200, Bitmap.Config.ARGB_8888)
+        val image = Bitmap.createBitmap(400, 100, Bitmap.Config.ARGB_8888)
         for (x in 0 until image.width) {
             for (y in 0 until image.height) {
                 image.setPixel(
@@ -279,17 +290,16 @@ class LauncherUiTest {
     fun selectingWallpaperAppliesImmediatelyWithoutSave() {
         launchLauncher()
         openSettings()
+        val previousWallpaper = wallpaperPixel()
 
         composeRule.onNodeWithText("Slate").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
 
         composeRule.onNodeWithText("Slate").assertIsSelected()
-        assertEquals(0xFF263238.toInt(), wallpaperPixel())
+        assertTrue(wallpaperPixel() != previousWallpaper)
+        assertTrue(isDimmedColor(wallpaperPixel(), 0xFF263238.toInt()))
         composeRule.onNodeWithText("Save").assertDoesNotExist()
-        composeRule.runOnUiThread {
-            composeRule.activity.onBackPressedDispatcher.onBackPressed()
-        }
-        composeRule.waitForIdle()
+        closeSettings()
         assertEquals(0xFF263238.toInt(), wallpaperPixel())
     }
 
@@ -299,10 +309,6 @@ class LauncherUiTest {
         openSettings()
         composeRule.onNodeWithText("Warm Gray").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
-        composeRule.runOnUiThread {
-            composeRule.activity.onBackPressedDispatcher.onBackPressed()
-        }
-        composeRule.waitForIdle()
 
         composeRule.activity.recreate()
 
@@ -513,29 +519,72 @@ class LauncherUiTest {
     @Test
     fun emptyCatalogShowsAnExplanatoryState() {
         launchLauncher()
-
-        composeRule.onNodeWithText(
+        val emptyCatalog = composeRule.onNodeWithText(
             "No apps available to open. Install an app and return to Tilevio.",
-        ).assertIsDisplayed()
+        )
+
+        emptyCatalog.assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
+        openSettings()
+        composeRule.onNodeWithText("Charcoal").assertIsFocused()
+        emptyCatalog.assertIsDisplayed()
     }
 
     @Test
-    fun backLeavesSettingsAndRestoresTheFocusedApp() {
+    fun settingsOverlaysTheRightThirdAndKeepsRemoteFocusInside() {
+        val alpha = app("Alpha", "alpha").copy(banner = solidImage(16, 9, Color.RED))
+        testApplication.launchableApps.apps = listOf(alpha)
+        launchLauncher()
+        val tile = composeRule.onNodeWithContentDescription("Alpha")
+        val gear = composeRule.onNodeWithContentDescription("Settings")
+        val tileBounds = tile.fetchSemanticsNode().boundsInRoot
+        val screen = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
+        val originalWallpaper = wallpaperPixel()
+
+        openSettings()
+
+        tile.assertIsDisplayed().assertIsNotFocused()
+        assertEquals(tileBounds, tile.fetchSemanticsNode().boundsInRoot)
+        val heading = composeRule.onNodeWithText("Settings").fetchSemanticsNode().boundsInRoot
+        assertTrue(heading.left >= screen.width * 2 / 3)
+        val panelEdge = (screen.width * 2 / 3).toInt()
+        val dimmedWallpaper = wallpaperPixel()
+        assertTrue(isDimmedColor(dimmedWallpaper, originalWallpaper))
+        assertEquals(dimmedWallpaper, wallpaperPixel(x = panelEdge - 2))
+        assertTrue(dimmedWallpaper != wallpaperPixel(x = panelEdge + 2))
+        assertTrue(isDimmedColor(tilePixel("Alpha", xFraction = 0.5f, yFraction = 0.5f), Color.RED))
+
+        composeRule.onRoot().performKeyInput {
+            repeat(6) {
+                pressKey(Key.DirectionLeft)
+                pressKey(Key.DirectionUp)
+            }
+            pressKey(Key.DirectionCenter)
+        }
+
+        composeRule.onNodeWithText("Charcoal").assertIsFocused()
+        tile.assertIsNotFocused()
+        gear.assertIsNotFocused()
+        assertEquals(emptyList<App>(), testApplication.appLauncher.launchedApps)
+    }
+
+    @Test
+    fun backClosesSettingsAndFocusesTheGear() {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
         launchLauncher()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
         composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
         openSettings()
 
-        composeRule.runOnUiThread {
-            composeRule.activity.onBackPressedDispatcher.onBackPressed()
-        }
-        composeRule.waitForIdle()
+        closeSettings()
 
         assertEquals(false, composeRule.activity.isFinishing)
         composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
         composeRule.onNodeWithText("Set Tilevio as default home").assertDoesNotExist()
+
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
     }
 
     @Test
@@ -556,7 +605,7 @@ class LauncherUiTest {
     }
 
     @Test
-    @Config(qualifiers = "en")
+    @Config(qualifiers = "+en")
     fun clockPrecedesSettingsWithoutJoiningRemoteNavigation() {
         launchLauncherAt(hour = 13, minute = 37, second = 42)
         val clockBounds = composeRule.onNodeWithText("13:37").fetchSemanticsNode().boundsInRoot
@@ -631,7 +680,7 @@ class LauncherUiTest {
         assertEquals(activity, composeRule.activity)
         assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
         composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
     }
 
     @Test
@@ -810,16 +859,14 @@ class LauncherUiTest {
 
         composeRule.onNodeWithText("Alpha").assertIsSelected()
         composeRule.onNodeWithText("Save").assertDoesNotExist()
-        closeSettings()
         composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
-        openSettings()
+        composeRule.onNodeWithContentDescription("Bravo").assertIsDisplayed().assertIsNotFocused()
         changeAppVisibility("Alpha")
         composeRule.onNodeWithText("Alpha").assertIsNotSelected()
+        assertEquals(listOf("Alpha", "Bravo"), visibleAppNames())
         closeSettings()
 
-        assertEquals(listOf("Alpha", "Bravo"), visibleAppNames())
-        composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
     }
 
     @Test
@@ -828,7 +875,6 @@ class LauncherUiTest {
         launchLauncher()
         openSettings()
         changeAppVisibility("Alpha")
-        closeSettings()
 
         composeRule.activity.recreate()
         composeRule.waitForIdle()
@@ -841,7 +887,7 @@ class LauncherUiTest {
     }
 
     @Test
-    fun hidingFocusedAppsUsesTheNearestAvailableTile() {
+    fun movingDownFromTheGearAfterHidingAppsUsesTheNearestAvailableTile() {
         testApplication.launchableApps.apps = listOf(
             app("Alpha", "alpha"),
             app("Bravo", "bravo"),
@@ -854,17 +900,20 @@ class LauncherUiTest {
         changeAppVisibility("Bravo")
         closeSettings()
 
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
         composeRule.onNodeWithContentDescription("Charlie").assertIsFocused()
         openSettings()
         changeAppVisibility("Charlie")
         closeSettings()
 
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
         composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
         openSettings()
         changeAppVisibility("Bravo")
         closeSettings()
 
         assertEquals(listOf("Alpha", "Bravo"), visibleAppNames())
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
         composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
     }
 
@@ -886,14 +935,15 @@ class LauncherUiTest {
         changeAppVisibility("Alpha")
         closeSettings()
 
-        composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
+        composeRule.onNodeWithContentDescription("Alpha").assertIsDisplayed()
         composeRule.onNodeWithText(
             "All Apps are hidden. Open Settings to show an App again.",
         ).assertDoesNotExist()
     }
 
     @Test
-    @Config(qualifiers = "en")
+    @Config(qualifiers = "+en")
     fun englishLocaleUsesEnglishResources() {
         launchLauncher()
 
@@ -904,7 +954,7 @@ class LauncherUiTest {
     }
 
     @Test
-    @Config(qualifiers = "es")
+    @Config(qualifiers = "+es")
     fun unsupportedLocaleFallsBackToEnglish() {
         launchLauncher()
 
@@ -916,7 +966,7 @@ class LauncherUiTest {
     }
 
     @Test
-    @Config(qualifiers = "fr")
+    @Config(qualifiers = "+fr")
     fun frenchLocaleLocalizesSettingsAndErrors() {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
         testApplication.defaultHomeAdapter.isHeld = false
@@ -947,7 +997,10 @@ class LauncherUiTest {
         closeSettings()
 
         testApplication.appLauncher.succeeds = false
-        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        composeRule.onRoot().performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionCenter)
+        }
 
         composeRule.onNodeWithText(
             "Impossible d’ouvrir Alpha. La liste des applications a été actualisée.",
@@ -955,7 +1008,7 @@ class LauncherUiTest {
     }
 
     @Test
-    @Config(qualifiers = "fr")
+    @Config(qualifiers = "+fr")
     fun frenchLocaleLocalizesEmptyStatesAndKeepsSettingsAccessible() {
         launchLauncher()
         composeRule.onNodeWithText(
@@ -1251,7 +1304,9 @@ class LauncherUiTest {
         expectedPixel: Int = Color.RED,
     ) {
         completeImageSelection(picker, document.uri)
-        awaitWallpaperPixel(expectedPixel)
+        composeRule.waitUntil {
+            runCatching { isDimmedColor(wallpaperPixel(), expectedPixel) }.getOrDefault(false)
+        }
     }
 
     private fun awaitWallpaperPixel(expectedPixel: Int) {
@@ -1277,6 +1332,13 @@ class LauncherUiTest {
         view.draw(android.graphics.Canvas(bitmap))
         bitmap.getPixel(x, y)
     }
+
+    private fun isDimmedColor(actual: Int, original: Int): Boolean =
+        listOf(Color::red, Color::green, Color::blue).all { channel ->
+            val originalValue = channel(original)
+            val actualValue = channel(actual)
+            if (originalValue == 0) actualValue == 0 else actualValue in 1 until originalValue
+        }
 
     private fun tilePixel(label: String, xFraction: Float, yFraction: Float): Int =
         composeRule.runOnUiThread {

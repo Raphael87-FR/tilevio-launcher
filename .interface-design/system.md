@@ -37,6 +37,8 @@ Base: 4dp
 | `tile-border-focused` | `#FFFFFF` | Remote focus indication |
 | `tile-border-focus-contrast` | `#171717` | Inner contrast edge on light App artwork |
 | `settings-surface-resting` | Transparent | Gear without a permanent container |
+| `settings-panel-surface` | `#171717` | Opaque surface over the right third of the Launcher |
+| `settings-scrim` | Black at 32% opacity | Dims the Launcher while Settings is open |
 | `control-surface` | `#292929` | Settings option and action container |
 | `control-border-resting` | `#666666` | Settings control at rest (1dp) |
 | `control-border-focused` | `#FFFFFF` | Settings control focused or selected (3dp) |
@@ -114,4 +116,4 @@ The clock follows the device's 12-hour or 24-hour preference and displays no sec
 ## Decisions
 
 - 2026-10-27: Adopted the five-column, banner-led home screen and restrained clock/Settings header from the validated design discussion. Full product and testing contract: GitHub issue #14.
-- 2026-11-07 (planned). Open Settings in a right-side panel over the Launcher. Keep the Launcher visible so Wallpaper changes can be seen behind the Tiles. Retain Wallpaper choices, App visibility, Default Home selection, and version information. A vertically scrolling list with one App per row accommodates larger catalogs.
+- 2026-11-07. Open Settings in a right-side panel over the Launcher. Keep the Launcher visible under a scrim so Wallpaper and App visibility changes can be seen immediately. Keep remote focus inside the panel. Back and Home close it and return focus to the gear. Retain Wallpaper choices, App visibility, Default Home selection, and version information. A vertically scrolling list with one App per row accommodates larger catalogs.

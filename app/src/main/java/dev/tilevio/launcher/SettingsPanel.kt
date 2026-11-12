@@ -1,12 +1,13 @@
 package dev.tilevio.launcher
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,11 +30,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun SettingsScreen(
+fun SettingsPanel(
     state: LauncherState,
     onPickWallpaperImage: () -> Unit,
     isDefaultHome: Boolean,
     onActivateDefaultHome: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val activationFocusRequester = remember { FocusRequester() }
     LaunchedEffect(isDefaultHome) {
@@ -42,7 +44,12 @@ fun SettingsScreen(
             activationFocusRequester.requestFocus()
         }
     }
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth(1f / 3)
+            .fillMaxHeight()
+            .background(RemoteTokens.SettingsPanelSurface),
+    ) {
         BasicText(
             text = stringResource(R.string.settings),
             modifier = Modifier.padding(32.dp),
@@ -203,12 +210,14 @@ fun SettingsAction(
     onClick: () -> Unit,
     focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Action(
         onClick = onClick,
         focusRequester = focusRequester,
         hasContainer = false,
         modifier = modifier.size(48.dp),
+        enabled = enabled,
     ) { actionModifier ->
         Image(
             painter = painterResource(R.drawable.ic_settings),
@@ -244,6 +253,7 @@ private fun Action(
     focusRequester: FocusRequester,
     hasContainer: Boolean = true,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     content: @Composable (Modifier) -> Unit,
 ) {
     content(
@@ -257,6 +267,7 @@ private fun Action(
                 )
             },
             focusRequester = focusRequester,
+            enabled = enabled,
         ),
     )
 }
