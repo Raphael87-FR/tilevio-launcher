@@ -5,6 +5,10 @@
     <string name="launch_failure">Impossible d’ouvrir %1$s. La liste des applications a été actualisée.</string>
     <string name="settings">Paramètres</string>
     <string name="apps">Applications</string>
+    <plurals name="hidden_app_count">
+        <item quantity="one">%1$d application masquée</item>
+        <item quantity="other">%1$d applications masquées</item>
+    </plurals>
     <string name="shown">Visible</string>
     <string name="hidden">Masquée</string>
     <string name="all_apps_hidden">Toutes les applications sont masquées. Ouvrez les paramètres pour en afficher une à nouveau.</string>

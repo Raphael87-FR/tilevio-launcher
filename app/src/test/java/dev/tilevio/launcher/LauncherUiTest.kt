@@ -16,6 +16,7 @@ import android.os.Looper
 import android.provider.Settings
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -124,7 +125,7 @@ class LauncherUiTest {
 
         advanceTimeBy(60_000)
         composeRule.onNodeWithText("13:40").assertExists()
-        closeSettings()
+        pressBack()
 
         composeRule.onNodeWithText("13:40").assertIsDisplayed()
     }
@@ -177,7 +178,7 @@ class LauncherUiTest {
 
         composeRule.onNodeWithContentDescription("Choose image").assertIsSelected().assertIsFocused()
         assertEquals(Color.RED, tilePixel("Choose image", xFraction = 0.5f, yFraction = 0.5f))
-        closeSettings()
+        pressBack()
         assertEquals(Color.RED, wallpaperPixel())
     }
 
@@ -206,7 +207,7 @@ class LauncherUiTest {
         launchLauncher()
         openSettings()
         completeSuccessfulImageSelection(openImagePicker(), document)
-        closeSettings()
+        pressBack()
         val openCount = document.openCount
 
         document.isAvailable = false
@@ -231,7 +232,7 @@ class LauncherUiTest {
         assertWallpaperImportFailure()
         composeRule.onNodeWithContentDescription("Slate").assertIsSelected()
         assertEquals(slateBehindPanel, wallpaperPixel())
-        closeSettings()
+        pressBack()
         assertEquals(0xFF263238.toInt(), wallpaperPixel())
     }
 
@@ -251,7 +252,7 @@ class LauncherUiTest {
         composeRule.onNodeWithContentDescription("Choose image").assertIsSelected()
         assertEquals(Color.RED, tilePixel("Choose image", xFraction = 0.5f, yFraction = 0.5f))
         assertEquals(imageBehindPanel, wallpaperPixel())
-        closeSettings()
+        pressBack()
         assertEquals(Color.RED, wallpaperPixel())
     }
 
@@ -267,7 +268,7 @@ class LauncherUiTest {
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         composeRule.onNodeWithContentDescription("Choose image").assertIsNotSelected()
         assertEquals(placeholderPixel, tilePixel("Choose image", xFraction = 0.5f, yFraction = 0.5f))
-        closeSettings()
+        pressBack()
         composeRule.activity.recreate()
 
         awaitWallpaperPixel(0xFF292929.toInt())
@@ -293,7 +294,7 @@ class LauncherUiTest {
         launchLauncher()
         openSettings()
         completeSuccessfulImageSelection(openImagePicker(), document, expectedPixel = Color.GREEN)
-        closeSettings()
+        pressBack()
 
         val inset = composeRule.activity.window.decorView.width / 20
         assertEquals(Color.GREEN, wallpaperPixel(x = inset))
@@ -316,7 +317,7 @@ class LauncherUiTest {
         assertTrue(wallpaperPixel() != previousWallpaper)
         assertTrue(isDimmedColor(wallpaperPixel(), 0xFF263238.toInt()))
         composeRule.onNodeWithText("Save").assertDoesNotExist()
-        closeSettings()
+        pressBack()
         assertEquals(0xFF263238.toInt(), wallpaperPixel())
     }
 
@@ -547,6 +548,10 @@ class LauncherUiTest {
         openSettings()
         composeRule.onNodeWithContentDescription("Charcoal").assertIsFocused()
         emptyCatalog.assertIsDisplayed()
+        openApps()
+        composeRule.onNodeWithText("Apps").assertIsDisplayed()
+        pressBack()
+        composeRule.onNodeWithText("0 hidden apps").assertIsFocused()
     }
 
     @Test
@@ -595,7 +600,7 @@ class LauncherUiTest {
         composeRule.onNodeWithContentDescription("Bravo").assertIsFocused()
         openSettings()
 
-        closeSettings()
+        pressBack()
 
         assertEquals(false, composeRule.activity.isFinishing)
         composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertDoesNotExist()
@@ -700,6 +705,26 @@ class LauncherUiTest {
         assertEquals(1, testApplication.defaultHomeAdapter.requestIntents.size)
         composeRule.onNodeWithText("Version ${BuildConfig.VERSION_NAME}").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
+    }
+
+    @Test
+    fun homeIntentClosesTheAppsLevelAndReopeningStartsAtSettings() {
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+        launchLauncher()
+        openSettings()
+        openApps()
+
+        composeRule.runOnUiThread {
+            InstrumentationRegistry.getInstrumentation().callActivityOnNewIntent(
+                composeRule.activity,
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
+            )
+        }
+
+        composeRule.onNodeWithText("Apps").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
+        openSettings()
+        composeRule.onNodeWithContentDescription("Charcoal").assertIsFocused()
     }
 
     @Test
@@ -854,18 +879,54 @@ class LauncherUiTest {
     }
 
     @Test
-    fun settingsListsEveryAppWithItsShownState() {
+    fun backFromAppsRestoresFocusAndUpdatesTheHiddenCount() {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
         launchLauncher()
-
         openSettings()
 
+        val appsEntry = composeRule.onNodeWithText("0 hidden apps")
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        appsEntry.assertIsDisplayed().assertIsFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+
         composeRule.onNodeWithText("Apps").assertIsDisplayed()
-        focusAppInSettings("Alpha")
-        composeRule.onNodeWithText("Alpha").assertIsDisplayed().assertIsNotSelected()
-        focusAppInSettings("Bravo")
-        composeRule.onNodeWithText("Bravo").assertIsDisplayed().assertIsNotSelected()
-        composeRule.onAllNodesWithText("Shown").assertCountEquals(2)
+        composeRule.onNodeWithText("Settings").assertDoesNotExist()
+        composeRule.onNodeWithText("Alpha").assertIsFocused()
+        changeAppVisibility("Alpha")
+        pressBack()
+
+        composeRule.onNodeWithText("Settings").assertIsDisplayed()
+        composeRule.onNodeWithText("1 hidden app").assertIsDisplayed().assertIsFocused()
+        composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        changeAppVisibility("Bravo")
+        pressBack()
+        composeRule.onNodeWithText("2 hidden apps").assertIsDisplayed().assertIsFocused()
+        pressBack()
+        composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
+    }
+
+    @Test
+    fun remoteScrollsThroughEveryAppInLauncherOrder() {
+        val apps = (1..12).map { number ->
+            app("App ${number.toString().padStart(2, '0')}", "app$number")
+        }
+        testApplication.launchableApps.apps = apps.asReversed()
+        launchLauncher()
+        openSettings()
+        openApps()
+
+        composeRule.onNodeWithText(apps.last().label).assertDoesNotExist()
+        apps.forEachIndexed { index, app ->
+            if (index > 0) {
+                composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+            }
+            composeRule.onNodeWithText(app.label)
+                .assertIsDisplayed()
+                .assertIsFocused()
+                .assertIsNotSelected()
+                .assert(visibilityState("Shown"))
+        }
     }
 
     @Test
@@ -873,18 +934,21 @@ class LauncherUiTest {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
         launchLauncher()
         openSettings()
+        openApps()
 
         changeAppVisibility("Alpha")
 
-        composeRule.onNodeWithText("Alpha").assertIsSelected()
+        composeRule.onNodeWithText("Alpha").assertIsFocused().assertIsSelected().assert(visibilityState("Hidden"))
         composeRule.onNodeWithText("Save").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Bravo").assertIsDisplayed().assertIsNotFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.onNodeWithText("Alpha").assertIsNotFocused().assertIsSelected()
         changeAppVisibility("Alpha")
-        composeRule.onNodeWithText("Alpha").assertIsNotSelected()
+        composeRule.onNodeWithText("Alpha").assertIsNotSelected().assert(visibilityState("Shown"))
         composeRule.onNodeWithContentDescription("Alpha").assertIsDisplayed().assertIsNotFocused()
         composeRule.onNodeWithContentDescription("Bravo").assertIsDisplayed().assertIsNotFocused()
-        closeSettings()
+        closeSettingsFromApps()
 
         composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
     }
@@ -894,6 +958,7 @@ class LauncherUiTest {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
         launchLauncher()
         openSettings()
+        openApps()
         changeAppVisibility("Alpha")
 
         composeRule.activity.recreate()
@@ -902,6 +967,7 @@ class LauncherUiTest {
         composeRule.onNodeWithContentDescription("Alpha").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Bravo").assertIsDisplayed()
         openSettings()
+        openApps()
         focusAppInSettings("Alpha")
         composeRule.onNodeWithText("Alpha").assertIsSelected()
     }
@@ -916,21 +982,24 @@ class LauncherUiTest {
         launchLauncher()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionRight) }
         openSettings()
+        openApps()
 
         changeAppVisibility("Bravo")
-        closeSettings()
+        closeSettingsFromApps()
 
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
         composeRule.onNodeWithContentDescription("Charlie").assertIsFocused()
         openSettings()
+        openApps()
         changeAppVisibility("Charlie")
-        closeSettings()
+        closeSettingsFromApps()
 
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
         composeRule.onNodeWithContentDescription("Alpha").assertIsFocused()
         openSettings()
+        openApps()
         changeAppVisibility("Bravo")
-        closeSettings()
+        closeSettingsFromApps()
 
         assertEquals(listOf("Alpha", "Bravo"), visibleAppNames())
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionDown) }
@@ -942,18 +1011,20 @@ class LauncherUiTest {
         testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
         launchLauncher()
         openSettings()
+        openApps()
         changeAppVisibility("Alpha")
         changeAppVisibility("Bravo")
 
-        closeSettings()
+        closeSettingsFromApps()
 
         composeRule.onNodeWithText(
             "All Apps are hidden. Open Settings to show an App again.",
         ).assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
         openSettings()
+        openApps()
         changeAppVisibility("Alpha")
-        closeSettings()
+        closeSettingsFromApps()
 
         composeRule.onNodeWithContentDescription("Settings").assertIsFocused()
         composeRule.onNodeWithContentDescription("Alpha").assertIsDisplayed()
@@ -996,6 +1067,7 @@ class LauncherUiTest {
         composeRule.onNodeWithContentDescription("Paramètres").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
         composeRule.onNodeWithText("Fond d’écran").assertIsDisplayed()
+        composeRule.onNodeWithText("0 application masquée").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Anthracite").assertExists()
         composeRule.onNodeWithContentDescription("Graphite").assertExists()
         composeRule.onNodeWithContentDescription("Ardoise").requestFocus().assertIsFocused()
@@ -1012,10 +1084,10 @@ class LauncherUiTest {
         assertWallpaperImportFailure(
             "Impossible d’utiliser cette image. Le fond d’écran précédent a été conservé.",
         )
-        focusAppInSettings("Alpha")
+        openApps("Applications")
         composeRule.onNodeWithText("Applications").assertIsDisplayed()
-        composeRule.onNodeWithText("Visible").assertIsDisplayed()
-        closeSettings()
+        composeRule.onNodeWithText("Alpha").assertIsDisplayed().assert(visibilityState("Visible"))
+        closeSettingsFromApps()
 
         testApplication.appLauncher.succeeds = false
         composeRule.onRoot().performKeyInput {
@@ -1036,13 +1108,21 @@ class LauncherUiTest {
             "Aucune application à ouvrir. Installez une application, puis revenez dans Tilevio.",
         ).assertIsDisplayed()
 
-        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"))
+        testApplication.launchableApps.apps = listOf(app("Alpha", "alpha"), app("Bravo", "bravo"))
         composeRule.runOnUiThread { testApplication.packageChangeEvents.emit() }
         composeRule.waitForIdle()
         composeRule.onNodeWithContentDescription("Paramètres").requestFocus()
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+        openApps("Applications")
         changeAppVisibility("Alpha")
-        closeSettings()
+        pressBack()
+        composeRule.onNodeWithText("1 application masquée").assertIsDisplayed().assertIsFocused()
+        openApps("Applications")
+        composeRule.onNodeWithText("Alpha").assertIsSelected().assert(visibilityState("Masquée"))
+        changeAppVisibility("Bravo")
+        pressBack()
+        composeRule.onNodeWithText("2 applications masquées").assertIsDisplayed().assertIsFocused()
+        pressBack()
 
         composeRule.onNodeWithText(
             "Toutes les applications sont masquées. Ouvrez les paramètres pour en afficher une à nouveau.",
@@ -1239,6 +1319,14 @@ class LauncherUiTest {
         composeRule.onNodeWithText("Bravo").assertDoesNotExist()
     }
 
+    private fun openApps(entryLabel: String = "Apps") {
+        composeRule.onNodeWithText(entryLabel).requestFocus().assertIsFocused()
+        composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
+    }
+
+    private fun visibilityState(label: String): SemanticsMatcher =
+        SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, label)
+
     private fun changeAppVisibility(label: String) {
         focusAppInSettings(label)
         composeRule.onRoot().performKeyInput { pressKey(Key.DirectionCenter) }
@@ -1255,11 +1343,16 @@ class LauncherUiTest {
         composeRule.onNodeWithText(label).requestFocus()
     }
 
-    private fun closeSettings() {
+    private fun pressBack() {
         composeRule.runOnUiThread {
             composeRule.activity.onBackPressedDispatcher.onBackPressed()
         }
         composeRule.waitForIdle()
+    }
+
+    private fun closeSettingsFromApps() {
+        pressBack()
+        pressBack()
     }
 
     private fun advanceTimeBy(milliseconds: Long) {

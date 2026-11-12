@@ -62,7 +62,9 @@ import kotlinx.coroutines.delay
 fun LauncherScreen(dependencies: LauncherDependencies) {
     val scope = rememberCoroutineScope()
     val state = remember(dependencies, scope) { LauncherState(dependencies, scope) }
-    var isSettingsVisible by remember { mutableStateOf(false) }
+    var settingsLevel by remember { mutableStateOf<SettingsLevel?>(null) }
+    val isSettingsVisible = settingsLevel != null
+    var restoreAppsFocus by remember { mutableStateOf(false) }
     var preferGearFocus by remember { mutableStateOf(false) }
     var pickedWallpaperImage by remember { mutableStateOf<Uri?>(null) }
 
@@ -73,12 +75,20 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
     }
 
     val closeSettings = {
-        if (isSettingsVisible) {
+        if (settingsLevel != null) {
             preferGearFocus = true
-            isSettingsVisible = false
+            settingsLevel = null
+            restoreAppsFocus = false
         }
     }
-    BackHandler(onBack = closeSettings)
+    BackHandler {
+        if (settingsLevel == SettingsLevel.Apps) {
+            restoreAppsFocus = true
+            settingsLevel = SettingsLevel.Main
+        } else {
+            closeSettings()
+        }
+    }
     CloseSettingsOnNewIntent(closeSettings)
     DisposableEffect(state) {
         onDispose(state.watchCatalog())
@@ -139,7 +149,7 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
             ) {
                 HomeClock(modifier = Modifier.padding(end = 16.dp))
                 SettingsAction(
-                    onClick = { isSettingsVisible = true },
+                    onClick = { settingsLevel = SettingsLevel.Main },
                     focusRequester = settingsFocusRequester,
                     enabled = !isSettingsVisible,
                     modifier = Modifier.focusProperties {
@@ -197,10 +207,13 @@ fun LauncherScreen(dependencies: LauncherDependencies) {
             }
         }
 
-        if (isSettingsVisible) {
+        settingsLevel?.let { level ->
             Box(modifier = Modifier.matchParentSize().background(RemoteTokens.SettingsScrim))
             SettingsPanel(
                 state = state,
+                level = level,
+                restoreAppsFocus = restoreAppsFocus,
+                onOpenApps = { settingsLevel = SettingsLevel.Apps },
                 onPickWallpaperImage = { pickWallpaperImage.launch(wallpaperImageTypes) },
                 isDefaultHome = defaultHome.isActive,
                 onActivateDefaultHome = activateDefaultHome,

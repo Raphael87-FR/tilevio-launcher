@@ -110,6 +110,12 @@ The clock follows the device's 12-hour or 24-hour preference and displays no sec
 - Do not bundle or impose the landscape from the visual reference.
 - Keep essential text and focus indicators legible over the selected Wallpaper.
 
+### Apps
+
+- Show the Hidden App count on the Apps entry in Settings.
+- Open a scrollable Apps level in the same panel, in Launcher order. Each row shows the App icon, name and an eye for visibility. Dim the content and cross out the eye for Hidden Apps.
+- Keep the white focus outline at full opacity. Back returns focus to the Apps entry.
+
 ## Motion and Resource Use
 
 - Add no decorative Tile animations or animated Wallpaper.
@@ -119,4 +125,4 @@ The clock follows the device's 12-hour or 24-hour preference and displays no sec
 ## Decisions
 
 - 2026-10-27: Adopted the five-column, banner-led home screen and restrained clock/Settings header from the validated design discussion. Full product and testing contract: GitHub issue #14.
-- 2026-11-07. Open Settings in a right-side panel over the Launcher. Keep the Launcher visible under a scrim so Wallpaper and App visibility changes can be seen immediately. Keep remote focus inside the panel. Back and Home close it and return focus to the gear. Retain Wallpaper choices, App visibility, Default Home selection, and version information. A vertically scrolling list with one App per row accommodates larger catalogs.
+- 2026-11-07. Open Settings in a right-side panel over the Launcher. Keep the Launcher visible under a scrim so Wallpaper and App visibility changes can be seen immediately. Keep remote focus inside the panel. The main level holds Wallpaper choices, the Apps entry, Default Home selection and version information. Back from Apps returns to the main level. Back from the main level or Home from either level closes Settings and returns focus to the gear.
